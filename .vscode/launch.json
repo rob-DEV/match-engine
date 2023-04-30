@@ -20,7 +20,7 @@
                 }
             },
             "args": [
-                "--engine-type=me_client"
+                "--engine-type=client"
             ],
             "cwd": "${workspaceFolder}"
         },

@@ -1,27 +1,50 @@
-use clap::Parser;
+use matching_engine::initialize;
+use matching_engine::engine::OrderMatchType;
+use matching_engine::engine::Order;
+use matching_engine::engine::BuyOrSell;
+use matching_engine::engine::Orderbook;
+use matching_engine::engine::MatchEngine;
 
-mod server;
-mod client;
-mod util;
+mod matching_engine;
 
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct MatchEngineStartupArgs {
-    #[arg(short, long)]
-    engine_type: String,
-}
+use rand::Rng;
 
 fn main() {
-    // Initalize match engine as either client or server
-    let args = MatchEngineStartupArgs::parse();
-    let engine_startup_type =  args.engine_type;
+    let mut rng = rand::thread_rng();
+    let mut orderbook = Orderbook::new();
 
-    println!("Intializing match engine as {}", engine_startup_type);
+    // Bids
+    for i in 0..1000 {
+        let user_id = rng.gen_range(1000..100000);
+        let quantity = rng.gen_range(1..50);
+        let price = rng.gen_range(1..50);
+        let order = Order::new(user_id, quantity, price, BuyOrSell::BUY, OrderMatchType::AON);
 
-    // Either result or error
-    let _ = match engine_startup_type.as_str() {
-       "me_server" => server::create_listener(),
-       "me_client" => client::connect(),
-       _ => panic!("FATAL: BAD engine_startup_type"),
-    };
+        orderbook.place_order(order);
+    }
+
+    // Offers
+    for i in 0..1000 {
+        let user_id = rng.gen_range(1000..100000);
+        let quantity = rng.gen_range(1..50);
+        let price = rng.gen_range(1..50);
+        let order = Order::new(user_id, quantity, price, BuyOrSell::SELL, OrderMatchType::AON);
+        
+        orderbook.place_order(order);
+    }
+
+    let mut engine = MatchEngine::new(orderbook);
+
+    use std::time::Instant;
+    let now = Instant::now();
+
+    let executed_orders = engine.cycle();
+
+    let elapsed = now.elapsed();
+    // println!("Executions: {:?}", executed_orders);
+    println!("Elapsed: {:.2?}", elapsed);
+
+
+
+    initialize::initialize();
 }

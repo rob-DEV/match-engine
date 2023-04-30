@@ -3,8 +3,9 @@ use std::io::Result;
 use std::net::TcpListener;
 use std::net::TcpStream;
 
-use crate::util;
+use super::util;
 
+// SERVER
 fn handle_connection(mut stream: TcpStream) {
     let mut buffer = [0; 512];
     stream.read(&mut buffer).unwrap();
@@ -21,5 +22,13 @@ pub fn create_listener() -> Result<()> {
         let stream = stream.unwrap();
         handle_connection(stream);
     }
+    Ok(())
+}
+
+// CLIENT
+pub fn establish_connection() -> Result<()> {
+    let mut stream = TcpStream::connect("127.0.0.1:2345")?;
+    let msg = b"INPUT";
+    stream.write(msg)?;
     Ok(())
 }
