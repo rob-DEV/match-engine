@@ -28,8 +28,7 @@ impl Orderbook {
     pub fn check_for_trades(&mut self) -> Vec<Trade> {
         let mut executed_trades: Vec<Trade> = Vec::new();
 
-        while !self.asks.is_empty() && !self.bids.is_empty() {
-            let (ask, bid) = (self.asks.peek().unwrap(), self.bids.peek().unwrap());
+        while  let (ask, bid) = (self.asks.peek().unwrap(), self.bids.peek().unwrap()) {
             // Match the optional of the merge
             match self.merge_orders(ask, bid) {
                 None => break,
