@@ -94,6 +94,6 @@ impl Debug for Orderbook {
         for ask in &self.asks {
             writeln!(f, "{0: <10} | {1: <10} | {2: <10} | {3: <10}", ask.client_id, "SELL", ask.quantity, ask.price).unwrap();
         }
-        writeln!(f, "-----------------Orderbook End-----------------")
+        write!(f, "-----------------Orderbook End-----------------")
     }
 }
