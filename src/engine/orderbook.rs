@@ -87,13 +87,16 @@ impl Orderbook {
 impl Debug for Orderbook {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-------------------Orderbook-------------------").unwrap();
-        for bid in &self.bids {
+        writeln!(f, "{0: <10} | {1: <10} | {2: <10} | {3: <10}", "ClientId", "B/S", "Qty", "Px").unwrap();
+
+        for bid in &self.bids.clone().into_sorted_vec() {
             writeln!(f, "{0: <10} | {1: <10} | {2: <10} | {3: <10}", bid.client_id, "BUY", bid.quantity, bid.price).unwrap();
         }
         writeln!(f, "-----------------------------------------------").unwrap();
-        for ask in &self.asks {
+        for ask in &self.asks.clone().into_sorted_vec() {
             writeln!(f, "{0: <10} | {1: <10} | {2: <10} | {3: <10}", ask.client_id, "SELL", ask.quantity, ask.price).unwrap();
         }
+        writeln!(f, "{0: <10} | {1: <10} | {2: <10} | {3: <10}", "ClientId", "B/S", "Qty", "Px").unwrap();
         write!(f, "-----------------Orderbook End-----------------")
     }
 }
