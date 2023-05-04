@@ -29,16 +29,14 @@ impl Orderbook {
         let mut executed_trades: Vec<Trade> = Vec::new();
 
         while let (Some(ask), Some(bid)) = (self.asks.peek(), self.bids.peek()) {
-            // Match the optional of the merge
-            match self.merge_orders(ask, bid) {
+            match self.attempt_order_match(ask, bid) {
                 None => break,
                 Some((trade, remainder)) => {
+                    // Match and trade executed: pop bid and ask
                     self.asks.pop();
                     self.bids.pop();
                     executed_trades.push(trade);
                     if let Some(rem) = remainder {
-                        // Apply the remainder to the order book
-                        // iff the order has only been partially filled
                         match rem.side {
                             Side::BUY => self.bids.push(rem),
                             Side::SELL => self.asks.push(rem),
@@ -50,8 +48,7 @@ impl Orderbook {
         return executed_trades;
     }
 
-    // Merge and return trade, also return any remaining orders that need filled
-    fn merge_orders(&self, ask: &Order, bid: &Order) -> Option<(Trade, Option<Order>)> {
+    fn attempt_order_match(&self, ask: &Order, bid: &Order) -> Option<(Trade, Option<Order>)> {
         let (ask, bid) = match (ask.side, bid.side) {
             (Side::BUY, Side::SELL) => (bid, ask),
             (Side::SELL, Side::BUY) => (ask, bid),
