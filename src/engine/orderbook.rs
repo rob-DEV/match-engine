@@ -96,3 +96,57 @@ impl Debug for Orderbook {
         write!(f, "-----------------Orderbook End-----------------")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::engine::types::Side;
+    use crate::{Order, Orderbook};
+
+    #[test]
+    fn simple_like_for_like_match() {
+        // Given
+        let buy_order = Order::new(1, 1, 1, 10, Side::BUY);
+        let sell_order = Order::new(1, 1, 1, 10, Side::SELL);
+
+        let mut order_book = Orderbook::new();
+        order_book.apply_order(buy_order);
+        order_book.apply_order(sell_order);
+        // When
+        order_book.check_for_trades();
+        // Then
+        assert_eq!(order_book.bids.is_empty(), true);
+        assert_eq!(order_book.asks.is_empty(), true);
+    }
+
+    #[test]
+    fn buy_order_qty_remaining_on_book() {
+        // Given
+        let buy_order = Order::new(1, 1, 1, 10, Side::BUY);
+        let sell_order = Order::new(1, 1, 1, 6, Side::SELL);
+
+        let mut order_book = Orderbook::new();
+        order_book.apply_order(buy_order);
+        order_book.apply_order(sell_order);
+        // When
+        order_book.check_for_trades();
+        // Then
+        assert_eq!(order_book.asks.is_empty(), true);
+        assert_eq!(order_book.bids.pop().unwrap().quantity, 4)
+    }
+
+    #[test]
+    fn sell_order_qty_remaining_on_book() {
+        // Given
+        let buy_order = Order::new(1, 1, 1, 4, Side::BUY);
+        let sell_order = Order::new(1, 1, 1, 10, Side::SELL);
+
+        let mut order_book = Orderbook::new();
+        order_book.apply_order(buy_order);
+        order_book.apply_order(sell_order);
+        // When
+        order_book.check_for_trades();
+        // Then
+        assert_eq!(order_book.bids.is_empty(), true);
+        assert_eq!(order_book.asks.pop().unwrap().quantity, 6);
+    }
+}
