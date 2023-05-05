@@ -113,7 +113,10 @@ impl Debug for Orderbook {
             .unwrap();
         }
         writeln!(f, "-----------------------------------------------").unwrap();
-        for ask in &self.asks.clone().into_sorted_vec() {
+
+        let ask_vec: Vec<Order> = self.asks.clone().into_sorted_vec().into_iter().rev().collect();
+
+        for ask in &ask_vec  {
             writeln!(
                 f,
                 "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
