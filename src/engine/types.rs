@@ -58,3 +58,13 @@ pub struct Trade {
     pub ask: Order,
     pub bid: Order
 }
+
+// impl Default for Trade {
+//     fn default () -> Trade {
+//         Trade { 
+//             filled_quantity: 0, 
+//             bid: Order::new(0, 0, 0, 0, Side::BUY),
+//             ask: Order::new(0, 0, 0, 0, Side::SELL),
+//         }
+//     }
+// }

@@ -1,9 +1,8 @@
-// FIFO book
-
+use crate::engine::types::{Side, Trade};
+use crate::Order;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fmt::{Debug, Formatter};
-use crate::engine::types::{Order, Side, Trade};
 
 pub struct Orderbook {
     asks: BinaryHeap<Order>,
@@ -25,34 +24,28 @@ impl Orderbook {
         };
     }
 
-    pub fn check_for_trades(&mut self) -> Vec<Trade> {
-        let mut executed_trades: Vec<Trade> = Vec::new();
-
+    pub fn check_for_trades(&mut self, executed_trades: &mut Vec<Trade>) {
         while let (Some(ask), Some(bid)) = (self.asks.peek(), self.bids.peek()) {
             match self.attempt_order_match(ask, bid) {
                 None => break,
                 Some((trade, remainder)) => {
-                    // Match and trade executed: pop bid and ask
-                    self.asks.pop();
-                    self.bids.pop();
                     executed_trades.push(trade);
                     if let Some(rem) = remainder {
-                        match rem.side {
-                            Side::BUY => self.bids.push(rem),
-                            Side::SELL => self.asks.push(rem),
-                        };
+                        self.apply_order(rem);
                     }
+                    // Matched orders ejected from book
+                    self.asks.pop();
+                    self.bids.pop();
                 }
             }
         }
-        return executed_trades;
     }
 
     fn attempt_order_match(&self, ask: &Order, bid: &Order) -> Option<(Trade, Option<Order>)> {
         let (ask, bid) = match (ask.side, bid.side) {
             (Side::BUY, Side::SELL) => (bid, ask),
             (Side::SELL, Side::BUY) => (ask, bid),
-            (_, _) => return None
+            (_, _) => return None,
         };
 
         if ask.price > bid.price {
@@ -62,19 +55,40 @@ impl Orderbook {
         match ask.quantity.cmp(&bid.quantity) {
             Ordering::Equal => {
                 let quantity = ask.quantity;
-                Some((Trade { filled_quantity: quantity, ask: ask.clone(), bid: bid.clone() }, None))
+                Some((
+                    Trade {
+                        filled_quantity: quantity,
+                        ask: ask.clone(),
+                        bid: bid.clone(),
+                    },
+                    None,
+                ))
             }
             Ordering::Greater => {
                 let quantity = bid.quantity;
                 let mut remainder = ask.clone();
                 remainder.quantity -= quantity;
-                Some((Trade { filled_quantity: quantity, ask: ask.clone(), bid: bid.clone() }, Some(remainder)))
+                Some((
+                    Trade {
+                        filled_quantity: quantity,
+                        ask: ask.clone(),
+                        bid: bid.clone(),
+                    },
+                    Some(remainder),
+                ))
             }
             Ordering::Less => {
                 let quantity = ask.quantity;
                 let mut remainder = bid.clone();
                 remainder.quantity -= quantity;
-                Some((Trade { filled_quantity: quantity, ask: ask.clone(), bid: bid.clone() }, Some(remainder)))
+                Some((
+                    Trade {
+                        filled_quantity: quantity,
+                        ask: ask.clone(),
+                        bid: bid.clone(),
+                    },
+                    Some(remainder),
+                ))
             }
         }
     }
@@ -83,16 +97,36 @@ impl Orderbook {
 impl Debug for Orderbook {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-------------------Orderbook-------------------").unwrap();
-        writeln!(f, "{0: <10} | {1: <10} | {2: <10} | {3: <10}", "ClientId", "B/S", "Qty", "Px").unwrap();
+        writeln!(
+            f,
+            "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
+            "ClientId", "B/S", "Qty", "Px"
+        )
+        .unwrap();
 
         for bid in &self.bids.clone().into_sorted_vec() {
-            writeln!(f, "{0: <10} | {1: <10} | {2: <10} | {3: <10}", bid.client_id, "BUY", bid.quantity, bid.price).unwrap();
+            writeln!(
+                f,
+                "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
+                bid.client_id, "BUY", bid.quantity, bid.price
+            )
+            .unwrap();
         }
         writeln!(f, "-----------------------------------------------").unwrap();
         for ask in &self.asks.clone().into_sorted_vec() {
-            writeln!(f, "{0: <10} | {1: <10} | {2: <10} | {3: <10}", ask.client_id, "SELL", ask.quantity, ask.price).unwrap();
+            writeln!(
+                f,
+                "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
+                ask.client_id, "SELL", ask.quantity, ask.price
+            )
+            .unwrap();
         }
-        writeln!(f, "{0: <10} | {1: <10} | {2: <10} | {3: <10}", "ClientId", "B/S", "Qty", "Px").unwrap();
+        writeln!(
+            f,
+            "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
+            "ClientId", "B/S", "Qty", "Px"
+        )
+        .unwrap();
         write!(f, "-----------------Orderbook End-----------------")
     }
 }
@@ -114,8 +148,8 @@ mod tests {
         // When
         order_book.check_for_trades();
         // Then
-        assert_eq!(order_book.bids.is_empty(), true);
-        assert_eq!(order_book.asks.is_empty(), true);
+        assert!(order_book.bids.is_empty());
+        assert!(order_book.asks.is_empty());
     }
 
     #[test]
@@ -130,7 +164,7 @@ mod tests {
         // When
         order_book.check_for_trades();
         // Then
-        assert_eq!(order_book.asks.is_empty(), true);
+        assert!(order_book.asks.is_empty());
         assert_eq!(order_book.bids.pop().unwrap().quantity, 4)
     }
 
@@ -146,7 +180,7 @@ mod tests {
         // When
         order_book.check_for_trades();
         // Then
-        assert_eq!(order_book.bids.is_empty(), true);
+        assert!(order_book.bids.is_empty());
         assert_eq!(order_book.asks.pop().unwrap().quantity, 6);
     }
 }
