@@ -8,15 +8,15 @@ pub enum Side {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Order {
-    pub client_id: u64,
-    pub seq_number: u64,
-    pub price: u64,
-    pub quantity: u64,
+    pub client_id: u32,
+    pub seq_number: u32,
+    pub price: u32,
+    pub quantity: u32,
     pub side: Side,
 }
 
 impl Order {
-    pub fn new(client_id: u64, seq_number: u64, price: u64, quantity: u64, side: Side) -> Order {
+    pub fn new(client_id: u32, seq_number: u32, price: u32, quantity: u32, side: Side) -> Order {
         Order {
             client_id,
             seq_number,
@@ -52,7 +52,7 @@ impl Ord for Order {
 }
 
 pub struct Trade {
-    pub filled_quantity: u64,
+    pub filled_quantity: u32,
     pub ask: Order,
     pub bid: Order,
 }
