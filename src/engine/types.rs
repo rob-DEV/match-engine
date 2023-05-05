@@ -1,9 +1,9 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, fmt::Debug, fmt::Formatter};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Side {
     BUY,
-    SELL
+    SELL,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -22,7 +22,7 @@ impl Order {
             seq_number,
             price,
             quantity,
-            side
+            side,
         }
     }
 
@@ -33,15 +33,14 @@ impl Order {
     fn partial_cmp_sell(&self, other: &Self) -> Option<Ordering> {
         Some(other.price.cmp(&self.price))
     }
-
 }
 
 impl PartialOrd for Order {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (&self.side, &other.side)  {
+        match (&self.side, &other.side) {
             (&Side::BUY, &Side::BUY) => self.partial_cmp_buy(other),
             (&Side::SELL, &Side::SELL) => self.partial_cmp_sell(other),
-            (_,_) => None,
+            (_, _) => None,
         }
     }
 }
@@ -52,19 +51,18 @@ impl Ord for Order {
     }
 }
 
-#[derive(Debug)]
 pub struct Trade {
     pub filled_quantity: u64,
     pub ask: Order,
-    pub bid: Order
+    pub bid: Order,
 }
 
-// impl Default for Trade {
-//     fn default () -> Trade {
-//         Trade { 
-//             filled_quantity: 0, 
-//             bid: Order::new(0, 0, 0, 0, Side::BUY),
-//             ask: Order::new(0, 0, 0, 0, Side::SELL),
-//         }
-//     }
-// }
+impl Debug for Trade {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{0: <3} | {1: <5} | {2: <5} | {3: <4}",
+            self.filled_quantity, self.bid.price, self.bid.client_id, self.ask.client_id
+        )
+    }
+}
