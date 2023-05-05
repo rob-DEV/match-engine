@@ -149,7 +149,8 @@ mod tests {
         order_book.apply_order(buy_order);
         order_book.apply_order(sell_order);
         // When
-        order_book.check_for_trades();
+        let mut trades = Vec::new();
+        order_book.check_for_trades(&mut trades);
         // Then
         assert!(order_book.bids.is_empty());
         assert!(order_book.asks.is_empty());
@@ -165,7 +166,9 @@ mod tests {
         order_book.apply_order(buy_order);
         order_book.apply_order(sell_order);
         // When
-        order_book.check_for_trades();
+        let mut trades = Vec::new();
+        order_book.check_for_trades(&mut trades);
+        // Then
         // Then
         assert!(order_book.asks.is_empty());
         assert_eq!(order_book.bids.pop().unwrap().quantity, 4)
@@ -181,7 +184,9 @@ mod tests {
         order_book.apply_order(buy_order);
         order_book.apply_order(sell_order);
         // When
-        order_book.check_for_trades();
+        let mut trades = Vec::new();
+        order_book.check_for_trades(&mut trades);
+        // Then
         // Then
         assert!(order_book.bids.is_empty());
         assert_eq!(order_book.asks.pop().unwrap().quantity, 6);
