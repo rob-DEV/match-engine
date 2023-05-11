@@ -1,8 +1,9 @@
 use crate::engine::types::{Side, Trade};
-use crate::Order;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fmt::{Debug, Formatter};
+
+use super::types::Order;
 
 pub struct Orderbook {
     asks: BinaryHeap<Order>,
@@ -12,8 +13,8 @@ pub struct Orderbook {
 impl Orderbook {
     pub fn new() -> Orderbook {
         Orderbook {
-            asks: Default::default(),
-            bids: Default::default(),
+            asks: BinaryHeap::with_capacity(10000000),
+            bids: BinaryHeap::with_capacity(10000000),
         }
     }
 
@@ -136,8 +137,8 @@ impl Debug for Orderbook {
 
 #[cfg(test)]
 mod tests {
-    use crate::engine::types::Side;
-    use crate::{Order, Orderbook};
+    use crate::engine::types::{Side, Order};
+    use crate::engine::orderbook::Orderbook;
 
     #[test]
     fn simple_like_for_like_match() {
