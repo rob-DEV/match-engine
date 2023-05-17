@@ -1,3 +1,8 @@
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -9,12 +14,18 @@ mod engine;
 async fn main() {
     let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
 
+    let shared_state = Arc::new(Mutex::new(HashMap::<String, String>::new()));
+
     loop {
         let (socket, _) = listener.accept().await.unwrap();
+
+        // accquire reference to shared state
+        let shared_state = shared_state.clone();
+
         // A new task is spawned for each inbound socket. The socket is
         // moved to the new task and processed there.
         tokio::spawn(async move {
-            process(socket).await;
+            process(socket, shared_state).await;
         });
     }
 
@@ -22,7 +33,7 @@ async fn main() {
     // server receive order, sequence, add to book
 }
 
-async fn process(mut tcp_stream: TcpStream) {
+async fn process(mut tcp_stream: TcpStream, shared_state: Arc<Mutex<HashMap<String, String>>>) {
     println!("Connection Established");
 
     let (reader, mut writer) = tcp_stream.split();
@@ -35,9 +46,20 @@ async fn process(mut tcp_stream: TcpStream) {
             break;
         }
 
-        println!("Input: {:?}", line.trim().as_bytes());
+        let trimmed_line = line.trim();
+        println!("Input: {:?}", trimmed_line.as_bytes());
+
+        {
+            let mut shared_state = shared_state.lock().unwrap();
+            if trimmed_line.contains("print_map") {
+                println!("Map: {:?}", shared_state);
+            } else {
+                shared_state.insert(trimmed_line.to_owned(), trimmed_line.to_owned());
+            }
+        }
 
         line.clear();
+
         writer
             .write_all("Response\n".to_owned().as_bytes())
             .await
