@@ -4,7 +4,7 @@ use std::{
     time::Instant,
 };
 
-use engine::{orderbook::Orderbook, types::Trade};
+use engine::{orderbook::Orderbook, types::Trade, match_engine::MatchEngine};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -16,9 +16,9 @@ mod engine;
 
 #[tokio::main]
 async fn main() {
-    let listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
+    let client_connection_listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
 
-    let engine_mutex = Arc::new(Mutex::new(engine::orderbook::Orderbook::new()));
+    let engine_mutex = Arc::new(Mutex::new(engine::match_engine::MatchEngine::new()));
 
     let mut executed_trades: Vec<Trade> = Vec::with_capacity(1000000);
 
@@ -27,26 +27,7 @@ async fn main() {
     let _handle = thread::spawn(move || loop {
         match engine_mutex_match_thread.lock() {
             Ok(mut orderbook) => {
-                let match_cycle_start_time = Instant::now();
-                orderbook.check_for_trades(&mut executed_trades);
-                let _match_cycle_duration_micros = match_cycle_start_time.elapsed().as_micros();
-
-                if executed_trades.len() > 0 {
-                    println!("Matched Trades: {}", executed_trades.len());
-                    println!("Trades:");
-                    println!(
-                        "{0: <3} | {1: <5} | {2: <5} | {3: <4}",
-                        "Qty", "Px", "B/CId", "S/CId"
-                    );
-
-                    for trade in &executed_trades {
-                        println!("{:?}", trade);
-                    }
-
-                    executed_trades.clear();
-                    println!("{:?}", orderbook);
-                }
-
+                orderbook.run();
             }
             Err(_) => println!("Error locking engine"),
         }
@@ -54,26 +35,30 @@ async fn main() {
 
     loop {
         let engine_mutex = engine_mutex.clone();
-        let (socket, _) = listener.accept().await.unwrap();
+        let (socket, _) = client_connection_listener.accept().await.unwrap();
 
         tokio::spawn(async move {
-            process(socket, engine_mutex).await;
+            client_connection_handler(socket, engine_mutex).await;
         });
     }
 }
 
-async fn process(mut tcp_stream: TcpStream, shared_state: Arc<Mutex<Orderbook>>) {
+async fn client_connection_handler(mut tcp_stream: TcpStream, engine: Arc<Mutex<MatchEngine>>) {
     println!("Connection Established");
 
-    let (reader, mut writer) = tcp_stream.split();
+    let (input_stream, mut output_stream) = tcp_stream.split();
 
-    let mut reader = BufReader::new(reader);
+    let mut reader = BufReader::new(input_stream);
     let mut line = String::new();
 
-    writer
-    .write_all("Place your order in the format:\n[B/S],Qty,Px\n".to_owned().as_bytes())
-    .await
-    .unwrap();
+    output_stream
+        .write_all(
+            "Place your order in the format:\n[B/S],Qty,Px\n"
+                .to_owned()
+                .as_bytes(),
+        )
+        .await
+        .unwrap();
 
     while let Ok(stream_bytes_read) = reader.read_line(&mut line).await {
         if stream_bytes_read == 0 {
@@ -98,7 +83,7 @@ async fn process(mut tcp_stream: TcpStream, shared_state: Arc<Mutex<Orderbook>>)
 
             let order_for_book = Order::new(1, 1, qty, px, side);
 
-            let mut ob = shared_state.lock().unwrap();
+            let mut ob = engine.lock().unwrap();
             ob.apply_order(order_for_book);
         }
 

@@ -25,12 +25,12 @@ impl Orderbook {
         };
     }
 
-    pub fn check_for_trades(&mut self, executed_trades: &mut Vec<Trade>) {
+    pub fn check_for_trades(&mut self, executions: &mut Vec<Trade>) {
         while let (Some(ask), Some(bid)) = (self.asks.peek(), self.bids.peek()) {
             match self.attempt_order_match(ask, bid) {
                 None => break,
                 Some((trade, remainder)) => {
-                    executed_trades.push(trade);
+                    executions.push(trade);
                     if let Some(rem) = remainder {
                         self.apply_order(rem);
                     }
