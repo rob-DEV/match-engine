@@ -16,12 +16,12 @@ pub struct Order {
 }
 
 impl Order {
-    pub fn new(client_id: u32, seq_number: u32, price: u32, quantity: u32, side: Side) -> Order {
+    pub fn new(client_id: u32, seq_number: u32, quantity: u32, price: u32, side: Side) -> Order {
         Order {
             client_id,
             seq_number,
-            price,
             quantity,
+            price,
             side,
         }
     }

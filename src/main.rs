@@ -43,10 +43,10 @@ async fn main() {
                         println!("{:?}", trade);
                     }
 
+                    executed_trades.clear();
                     println!("{:?}", orderbook);
                 }
 
-                executed_trades.clear();
             }
             Err(_) => println!("Error locking engine"),
         }
@@ -71,7 +71,7 @@ async fn process(mut tcp_stream: TcpStream, shared_state: Arc<Mutex<Orderbook>>)
     let mut line = String::new();
 
     writer
-    .write_all("Place your order in the format:\n[B/S],Px,Qty\n".to_owned().as_bytes())
+    .write_all("Place your order in the format:\n[B/S],Qty,Px\n".to_owned().as_bytes())
     .await
     .unwrap();
 
@@ -83,9 +83,6 @@ async fn process(mut tcp_stream: TcpStream, shared_state: Arc<Mutex<Orderbook>>)
         let trimmed_input = line.trim().to_owned();
         println!("Input: {:?}", trimmed_input.as_bytes());
 
-        // Parse B / S and add to book matching cycle
-        // To be replaced with fix parser
-        // Format [B/S],Px,Qty
         let mut token_iterator = trimmed_input.split(",");
 
         // Dodgy parse the BID and OFFER
@@ -96,12 +93,13 @@ async fn process(mut tcp_stream: TcpStream, shared_state: Arc<Mutex<Orderbook>>)
                 _ => panic!(),
             };
 
-            let px = token_iterator.next().unwrap().parse::<u32>().unwrap();
             let qty = token_iterator.next().unwrap().parse::<u32>().unwrap();
+            let px = token_iterator.next().unwrap().parse::<u32>().unwrap();
 
-            let order_for_book = Order::new(1, 1, px, qty, side);
+            let order_for_book = Order::new(1, 1, qty, px, side);
 
-            shared_state.lock().unwrap().apply_order(order_for_book);
+            let mut ob = shared_state.lock().unwrap();
+            ob.apply_order(order_for_book);
         }
 
         line.clear();
