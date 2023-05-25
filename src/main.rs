@@ -29,12 +29,7 @@ async fn main() {
             Ok(mut orderbook) => {
                 let match_cycle_start_time = Instant::now();
                 orderbook.check_for_trades(&mut executed_trades);
-                let match_cycle_duration_micros = match_cycle_start_time.elapsed().as_micros();
-
-                println!(
-                    "Matching cycle duration: {} microseconds",
-                    match_cycle_duration_micros
-                );
+                let _match_cycle_duration_micros = match_cycle_start_time.elapsed().as_micros();
 
                 if executed_trades.len() > 0 {
                     println!("Matched Trades: {}", executed_trades.len());
@@ -47,7 +42,6 @@ async fn main() {
                     for trade in &executed_trades {
                         println!("{:?}", trade);
                     }
-
 
                     println!("{:?}", orderbook);
                 }
@@ -76,6 +70,11 @@ async fn process(mut tcp_stream: TcpStream, shared_state: Arc<Mutex<Orderbook>>)
     let mut reader = BufReader::new(reader);
     let mut line = String::new();
 
+    writer
+    .write_all("Place your order in the format:\n[B/S],Px,Qty\n".to_owned().as_bytes())
+    .await
+    .unwrap();
+
     while let Ok(stream_bytes_read) = reader.read_line(&mut line).await {
         if stream_bytes_read == 0 {
             break;
@@ -86,7 +85,7 @@ async fn process(mut tcp_stream: TcpStream, shared_state: Arc<Mutex<Orderbook>>)
 
         // Parse B / S and add to book matching cycle
         // To be replaced with fix parser
-        // Format {B/S},Px,Qty
+        // Format [B/S],Px,Qty
         let mut token_iterator = trimmed_input.split(",");
 
         // Dodgy parse the BID and OFFER
@@ -106,11 +105,6 @@ async fn process(mut tcp_stream: TcpStream, shared_state: Arc<Mutex<Orderbook>>)
         }
 
         line.clear();
-
-        writer
-            .write_all("Response\n".to_owned().as_bytes())
-            .await
-            .unwrap();
     }
 
     println!("Connection closed!");
