@@ -66,8 +66,6 @@ async fn main() {
             process(socket, engine_mutex).await;
         });
     }
-    //client - send random orders every second
-    // server receive order, sequence, add to book
 }
 
 async fn process(mut tcp_stream: TcpStream, shared_state: Arc<Mutex<Orderbook>>) {
