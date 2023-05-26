@@ -1,49 +1,60 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{mpsc::Receiver, Arc, Mutex},
+    thread,
     time::Instant,
 };
 
 use super::{
-    orderbook::Orderbook,
+    orderbook::{self, Orderbook},
     types::{Order, Trade},
 };
 
 pub struct MatchEngine {
-    fifo_orderbook: Orderbook,
-    executions: Vec<Trade>
+    fifo_orderbook: Arc<Mutex<Orderbook>>,
+    executions: Arc<Mutex<Vec<Trade>>>,
 }
 
 impl MatchEngine {
     pub fn new() -> MatchEngine {
         MatchEngine {
-            fifo_orderbook: Orderbook::new(),
-            executions: Vec::with_capacity(1000000),
+            fifo_orderbook: Arc::new(Mutex::new(Orderbook::new())),
+            executions: Arc::new(Mutex::new(Vec::with_capacity(1000000))),
         }
     }
 
-    pub fn apply_order(&mut self, order: Order) {
-        self.fifo_orderbook.apply_order(order);
-    }
+    pub fn run(&mut self, order_rx: Receiver<Order>) {
+        let orderbook_handle: Arc<Mutex<Orderbook>> = self.fifo_orderbook.clone();
 
-    pub fn run(&mut self) {
-        let match_cycle_start_time = Instant::now();
-        self.fifo_orderbook.check_for_trades(&mut self.executions);
-        let _match_cycle_duration_micros = match_cycle_start_time.elapsed().as_micros();
+        let _order_submission_thread_handle = thread::spawn(move || {
+            while let Ok(order_to_book) = order_rx.recv() {
+                let mut orderbook = match orderbook_handle.lock() {
+                    Ok(orderbook) => orderbook,
+                    Err(_) => panic!("Failed to lock executions vector!"),
+                };
 
-        if self.executions.len() > 0 {
-            println!("Matched Trades: {}", self.executions.len());
-            println!("Trades:");
-            println!(
-                "{0: <3} | {1: <5} | {2: <5} | {3: <4}",
-                "Qty", "Px", "B/CId", "S/CId"
-            );
-
-            for trade in self.executions.iter() {
-                println!("{:?}", trade);
+                orderbook.apply_order(order_to_book)
             }
+        });
 
-            self.executions.clear();
-            println!("{:?}", self.fifo_orderbook);
-        }
+        let orderbook_handle: Arc<Mutex<Orderbook>> = self.fifo_orderbook.clone();
+        let executions_handle: Arc<Mutex<Vec<Trade>>> = self.executions.clone();
+
+        let _match_thread_handle = thread::spawn(move || loop {
+            let mut orderbook = match orderbook_handle.lock() {
+                Ok(orderbook) => orderbook,
+                Err(_) => panic!("Failed to lock executions vector!"),
+            };
+
+            let mut executions = match executions_handle.lock() {
+                Ok(executions) => executions,
+                Err(_) => panic!("Failed to lock executions vector!"),
+            };
+
+            let match_cycle_start_time = Instant::now();
+            orderbook.check_for_trades(&mut executions);
+            let match_cycle_duration_nanos = match_cycle_start_time.elapsed().as_nanos();
+            println!("Matching cycle nanos: {}", match_cycle_duration_nanos);
+            executions.clear();
+        });
     }
 }

@@ -115,9 +115,15 @@ impl Debug for Orderbook {
         }
         writeln!(f, "-----------------------------------------------").unwrap();
 
-        let ask_vec: Vec<Order> = self.asks.clone().into_sorted_vec().into_iter().rev().collect();
+        let ask_vec: Vec<Order> = self
+            .asks
+            .clone()
+            .into_sorted_vec()
+            .into_iter()
+            .rev()
+            .collect();
 
-        for ask in &ask_vec  {
+        for ask in &ask_vec {
             writeln!(
                 f,
                 "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
@@ -137,8 +143,8 @@ impl Debug for Orderbook {
 
 #[cfg(test)]
 mod tests {
-    use crate::engine::types::{Side, Order};
     use crate::engine::orderbook::Orderbook;
+    use crate::engine::types::{Order, Side};
 
     #[test]
     fn simple_like_for_like_match() {

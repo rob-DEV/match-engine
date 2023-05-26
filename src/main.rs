@@ -1,10 +1,13 @@
 use std::{
-    sync::{Arc, Mutex},
+    sync::{
+        mpsc::{channel, Receiver, Sender},
+        Arc, Mutex,
+    },
     thread,
     time::Instant,
 };
 
-use engine::{orderbook::Orderbook, types::Trade, match_engine::MatchEngine};
+use engine::{match_engine::MatchEngine, orderbook::Orderbook, types::Trade};
 use tokio::{
     io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
     net::{TcpListener, TcpStream},
@@ -18,33 +21,25 @@ mod engine;
 async fn main() {
     let client_connection_listener = TcpListener::bind("127.0.0.1:8080").await.unwrap();
 
+    let order_mpsc_channel: (Sender<Order>, Receiver<Order>) = channel();
+    let (order_tx, order_rx) = order_mpsc_channel;
+
     let engine_mutex = Arc::new(Mutex::new(engine::match_engine::MatchEngine::new()));
 
-    let mut executed_trades: Vec<Trade> = Vec::with_capacity(1000000);
-
-    let engine_mutex_match_thread = engine_mutex.clone();
-
-    let _handle = thread::spawn(move || loop {
-        match engine_mutex_match_thread.lock() {
-            Ok(mut orderbook) => {
-                orderbook.run();
-            }
-            Err(_) => println!("Error locking engine"),
-        }
-    });
+    engine_mutex.clone().lock().unwrap().run(order_rx);
 
     loop {
-        let engine_mutex = engine_mutex.clone();
+        let order = order_tx.clone();
         let (socket, _) = client_connection_listener.accept().await.unwrap();
 
         tokio::spawn(async move {
-            client_connection_handler(socket, engine_mutex).await;
+            client_connection_handler(socket, order).await;
         });
     }
 }
 
-async fn client_connection_handler(mut tcp_stream: TcpStream, engine: Arc<Mutex<MatchEngine>>) {
-    println!("Connection Established");
+async fn client_connection_handler(mut tcp_stream: TcpStream, order_tx: Sender<Order>) {
+    // println!("Connection Established");
 
     let (input_stream, mut output_stream) = tcp_stream.split();
 
@@ -66,7 +61,6 @@ async fn client_connection_handler(mut tcp_stream: TcpStream, engine: Arc<Mutex<
         }
 
         let trimmed_input = line.trim().to_owned();
-        println!("Input: {:?}", trimmed_input.as_bytes());
 
         let mut token_iterator = trimmed_input.split(",");
 
@@ -83,14 +77,13 @@ async fn client_connection_handler(mut tcp_stream: TcpStream, engine: Arc<Mutex<
 
             let order_for_book = Order::new(1, 1, qty, px, side);
 
-            let mut ob = engine.lock().unwrap();
-            ob.apply_order(order_for_book);
+            order_tx.send(order_for_book).unwrap();
         }
 
         line.clear();
     }
 
-    println!("Connection closed!");
+    // println!("Connection closed!");
 }
 
 #[cfg(test)]
