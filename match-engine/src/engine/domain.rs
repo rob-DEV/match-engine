@@ -1,4 +1,5 @@
 use std::{cmp::Ordering, fmt::Debug, fmt::Formatter};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Side {
@@ -8,21 +9,21 @@ pub enum Side {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Order {
-    pub client_id: u32,
-    pub seq_number: u32,
+    pub identifier: u32,
     pub price: u32,
     pub quantity: u32,
     pub side: Side,
+    pub placed_time: u128,
 }
 
 impl Order {
-    pub fn new(client_id: u32, seq_number: u32, quantity: u32, price: u32, side: Side) -> Order {
+    pub fn new(identifier: u32, quantity: u32, price: u32, side: Side) -> Order {
         Order {
-            client_id,
-            seq_number,
+            identifier,
             quantity,
             price,
             side,
+            placed_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
         }
     }
 
@@ -47,7 +48,7 @@ impl PartialOrd for Order {
 
 impl Ord for Order {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap_or(Ordering::Equal) // Sell and Buy are non-comparable
+        self.partial_cmp(other).unwrap_or(Ordering::Equal)
     }
 }
 
@@ -62,7 +63,7 @@ impl Debug for Trade {
         write!(
             f,
             "{0: <3} | {1: <5} | {2: <5} | {3: <4}",
-            self.filled_quantity, self.bid.price, self.bid.client_id, self.ask.client_id
+            self.filled_quantity, self.bid.price, self.bid.identifier, self.ask.identifier
         )
     }
 }

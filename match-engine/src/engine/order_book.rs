@@ -1,18 +1,19 @@
-use crate::engine::types::{Side, Trade};
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fmt::{Debug, Formatter};
 
-use super::types::Order;
+use crate::engine::domain::{Side, Trade};
 
-pub struct Orderbook {
+use super::domain::Order;
+
+pub struct OrderBook {
     asks: BinaryHeap<Order>,
     bids: BinaryHeap<Order>,
 }
 
-impl Orderbook {
-    pub fn new() -> Orderbook {
-        Orderbook {
+impl OrderBook {
+    pub fn new() -> OrderBook {
+        OrderBook {
             asks: BinaryHeap::with_capacity(10000000),
             bids: BinaryHeap::with_capacity(10000000),
         }
@@ -95,23 +96,21 @@ impl Orderbook {
     }
 }
 
-impl Debug for Orderbook {
+impl Debug for OrderBook {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-------------------Orderbook-------------------").unwrap();
         writeln!(
             f,
             "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
             "ClientId", "B/S", "Qty", "Px"
-        )
-        .unwrap();
+        ).unwrap();
 
         for bid in &self.bids.clone().into_sorted_vec() {
             writeln!(
                 f,
                 "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
-                bid.client_id, "BUY", bid.quantity, bid.price
-            )
-            .unwrap();
+                bid.identifier, "BUY", bid.quantity, bid.price
+            ).unwrap();
         }
         writeln!(f, "-----------------------------------------------").unwrap();
 
@@ -127,75 +126,103 @@ impl Debug for Orderbook {
             writeln!(
                 f,
                 "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
-                ask.client_id, "SELL", ask.quantity, ask.price
+                ask.identifier, "SELL", ask.quantity, ask.price
             )
-            .unwrap();
+                .unwrap();
         }
         writeln!(
             f,
             "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
             "ClientId", "B/S", "Qty", "Px"
         )
-        .unwrap();
+            .unwrap();
         write!(f, "-----------------Orderbook End-----------------")
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::engine::orderbook::Orderbook;
-    use crate::engine::types::{Order, Side};
+    use crate::engine::domain::{Order, Side, Trade};
+    use crate::engine::domain::Side::{BUY, SELL};
+    use crate::engine::order_book::OrderBook;
 
     #[test]
     fn simple_like_for_like_match() {
         // Given
-        let buy_order = Order::new(1, 1, 1, 10, Side::BUY);
-        let sell_order = Order::new(1, 1, 1, 10, Side::SELL);
+        let buy_order = Order::new(1, 1, 10, Side::BUY);
+        let sell_order = Order::new(1, 1, 10, Side::SELL);
 
-        let mut order_book = Orderbook::new();
-        order_book.apply_order(buy_order);
-        order_book.apply_order(sell_order);
+        let mut orderbook = OrderBook::new();
+        orderbook.apply_order(buy_order);
+        orderbook.apply_order(sell_order);
         // When
         let mut trades = Vec::new();
-        order_book.check_for_trades(&mut trades);
+        orderbook.check_for_trades(&mut trades);
         // Then
-        assert!(order_book.bids.is_empty());
-        assert!(order_book.asks.is_empty());
+        assert!(orderbook.bids.is_empty());
+        assert!(orderbook.asks.is_empty());
     }
 
     #[test]
     fn buy_order_qty_remaining_on_book() {
         // Given
-        let buy_order = Order::new(1, 1, 1, 10, Side::BUY);
-        let sell_order = Order::new(1, 1, 1, 6, Side::SELL);
+        let buy_order = Order::new(1, 10, 1, Side::BUY);
+        let sell_order = Order::new(1, 6, 1, Side::SELL);
 
-        let mut order_book = Orderbook::new();
-        order_book.apply_order(buy_order);
-        order_book.apply_order(sell_order);
+        let mut orderbook = OrderBook::new();
+        orderbook.apply_order(buy_order);
+        orderbook.apply_order(sell_order);
         // When
         let mut trades = Vec::new();
-        order_book.check_for_trades(&mut trades);
+        orderbook.check_for_trades(&mut trades);
         // Then
         // Then
-        assert!(order_book.asks.is_empty());
-        assert_eq!(order_book.bids.pop().unwrap().quantity, 4)
+        assert!(orderbook.asks.is_empty());
+        assert_eq!(orderbook.bids.pop().unwrap().quantity, 4)
     }
 
     #[test]
     fn sell_order_qty_remaining_on_book() {
         // Given
-        let buy_order = Order::new(1, 1, 1, 4, Side::BUY);
-        let sell_order = Order::new(1, 1, 1, 10, Side::SELL);
+        let buy_order = Order::new(1, 4, 1, Side::BUY);
+        let sell_order = Order::new(1, 10, 1, Side::SELL);
 
-        let mut order_book = Orderbook::new();
-        order_book.apply_order(buy_order);
-        order_book.apply_order(sell_order);
+        let mut orderbook = OrderBook::new();
+        orderbook.apply_order(buy_order);
+        orderbook.apply_order(sell_order);
         // When
         let mut trades = Vec::new();
-        order_book.check_for_trades(&mut trades);
+        orderbook.check_for_trades(&mut trades);
         // Then
         // Then
-        assert!(order_book.bids.is_empty());
-        assert_eq!(order_book.asks.pop().unwrap().quantity, 6);
+        assert!(orderbook.bids.is_empty());
+        assert_eq!(orderbook.asks.pop().unwrap().quantity, 6);
+    }
+
+    #[test]
+    fn orderbook_test() {
+        let mut orderbook = OrderBook::new();
+        let mut executed_trades: Vec<Trade> = Vec::with_capacity(1000000);
+
+        orderbook.apply_order(Order::new(1, 100, 10, BUY));
+        orderbook.apply_order(Order::new(2, 100, 5, SELL));
+        orderbook.apply_order(Order::new(3, 100, 10, SELL));
+
+        orderbook.check_for_trades(&mut executed_trades);
+
+        println!("Matched Trades: {}", executed_trades.len());
+        println!("Trades:");
+        println!(
+            "{0: <3} | {1: <5} | {2: <5} | {3: <4}",
+            "Qty", "Px", "B/CId", "S/CId"
+        );
+
+        for trade in &executed_trades {
+            println!("{:?}", trade);
+        }
+
+        println!("{:?}", orderbook);
+
+        executed_trades.clear();
     }
 }
