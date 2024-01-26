@@ -1,6 +1,7 @@
+use std::io::BufRead;
 use std::sync::mpsc::Sender;
 
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::AsyncReadExt;
 use tokio::net::{TcpListener, TcpStream};
 
 use crate::engine::domain::{Order, Side};
@@ -27,47 +28,34 @@ impl MatchServer {
         }
     }
 
-    async fn order_entry_handler(mut tcp_stream: TcpStream, order_tx: Sender<Order>) {
-        let (input_stream, mut output_stream) = tcp_stream.split();
+    async fn order_entry_handler(mut socket: TcpStream, order_tx: Sender<Order>) {
+        loop {
+            let mut str_buf = String::new();
 
-        let mut reader = BufReader::new(input_stream);
-        let mut line = String::new();
+            let n = socket
+                .read_to_string(&mut str_buf)
+                .await
+                .expect("failed to read data from socket");
 
-        output_stream
-            .write_all(
-                "Place your order in the format:\n[B/S],Qty,Px\n"
-                    .to_owned()
-                    .as_bytes(),
-            )
-            .await
-            .unwrap();
-
-        while let Ok(stream_bytes_read) = reader.read_line(&mut line).await {
-            if stream_bytes_read == 0 {
-                break;
+            if n == 0 {
+                return;
             }
 
-            let trimmed_input = line.trim().to_owned();
+            let mut token_iterator = str_buf.split("|");
 
-            let mut token_iterator = trimmed_input.split(",");
-
-            // Dodgy parse the BID and OFFER
             if token_iterator.clone().count() == 3 {
                 let side = match token_iterator.next().unwrap().to_uppercase().as_str() {
                     "B" => Side::BUY,
                     "S" => Side::SELL,
-                    _ => panic!(),
+                    _ => panic!()
                 };
 
-                let qty = token_iterator.next().unwrap().parse::<u32>().unwrap();
-                let px = token_iterator.next().unwrap().parse::<u32>().unwrap();
+                let qty: u32 = token_iterator.next().unwrap().parse().unwrap();
+                let px: u32 = token_iterator.next().unwrap().parse().unwrap();
 
                 let order_for_book = Order::new(1, qty, px, side);
-
                 order_tx.send(order_for_book).unwrap();
             }
-
-            line.clear();
         }
     }
 }

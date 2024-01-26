@@ -29,7 +29,7 @@ impl MatchEngine {
             while let Ok(order_to_book) = order_rx.recv() {
                 let mut orderbook = match orderbook_handle.lock() {
                     Ok(orderbook) => orderbook,
-                    Err(_) => panic!("Failed to lock executions vector!"),
+                    Err(_) => panic!("Failed to lock orderbook!"),
                 };
 
                 orderbook.apply_order(order_to_book)
@@ -49,7 +49,7 @@ impl MatchEngine {
         loop {
             let mut orderbook = match orderbook_handle.lock() {
                 Ok(orderbook) => orderbook,
-                Err(_) => panic!("Failed to lock executions vector!"),
+                Err(_) => panic!("Failed to lock orderbook!"),
             };
 
             let mut executions = match executions_handle.lock() {
