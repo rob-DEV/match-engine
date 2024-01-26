@@ -1,8 +1,9 @@
 use std::sync::mpsc::{channel, Receiver, Sender};
 
-use crate::engine::domain::Order;
+use crate::domain::order::Order;
 
 mod engine;
+mod domain;
 
 #[tokio::main]
 async fn main() {

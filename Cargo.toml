@@ -1,3 +1,3 @@
 [workspace]
-members = ["match-engine", "order-entry-api"]
+members = ["common", "match-engine", "order-entry-api"]
 resolver = "2"

@@ -1,11 +1,7 @@
-use std::{cmp::Ordering, fmt::Debug, fmt::Formatter};
+use std::cmp::Ordering;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Side {
-    BUY,
-    SELL,
-}
+use crate::domain::side::Side;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Order {
@@ -49,21 +45,5 @@ impl PartialOrd for Order {
 impl Ord for Order {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap_or(Ordering::Equal)
-    }
-}
-
-pub struct Trade {
-    pub filled_quantity: u32,
-    pub ask: Order,
-    pub bid: Order,
-}
-
-impl Debug for Trade {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{0: <3} | {1: <5} | {2: <5} | {3: <4}",
-            self.filled_quantity, self.bid.price, self.bid.identifier, self.ask.identifier
-        )
     }
 }

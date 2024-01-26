@@ -2,9 +2,9 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fmt::{Debug, Formatter};
 
-use crate::engine::domain::{Side, Trade};
-
-use super::domain::Order;
+use crate::domain::order::Order;
+use crate::domain::side::Side;
+use crate::domain::trade::Trade;
 
 pub struct OrderBook {
     asks: BinaryHeap<Order>,
@@ -26,12 +26,13 @@ impl OrderBook {
         };
     }
 
-    pub fn check_for_trades(&mut self, executions: &mut Vec<Trade>) {
+    pub fn check_for_trades(&mut self) -> u32 {
+        let mut executions: u32 = 0;
         while let (Some(ask), Some(bid)) = (self.asks.peek(), self.bids.peek()) {
             match self.attempt_order_match(ask, bid) {
                 None => break,
-                Some((trade, remainder)) => {
-                    executions.push(trade);
+                Some((_, remainder)) => {
+                    executions += 1;
                     if let Some(rem) = remainder {
                         self.apply_order(rem);
                     }
@@ -41,6 +42,8 @@ impl OrderBook {
                 }
             }
         }
+
+        return executions;
     }
 
     fn attempt_order_match(&self, ask: &Order, bid: &Order) -> Option<(Trade, Option<Order>)> {
@@ -142,8 +145,8 @@ impl Debug for OrderBook {
 
 #[cfg(test)]
 mod tests {
-    use crate::engine::domain::{Order, Side, Trade};
-    use crate::engine::domain::Side::{BUY, SELL};
+    use crate::domain::order::Order;
+    use crate::domain::side::Side;
     use crate::engine::order_book::OrderBook;
 
     #[test]
@@ -156,8 +159,7 @@ mod tests {
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
-        let mut trades = Vec::new();
-        orderbook.check_for_trades(&mut trades);
+        orderbook.check_for_trades();
         // Then
         assert!(orderbook.bids.is_empty());
         assert!(orderbook.asks.is_empty());
@@ -173,9 +175,7 @@ mod tests {
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
-        let mut trades = Vec::new();
-        orderbook.check_for_trades(&mut trades);
-        // Then
+        orderbook.check_for_trades();
         // Then
         assert!(orderbook.asks.is_empty());
         assert_eq!(orderbook.bids.pop().unwrap().quantity, 4)
@@ -191,38 +191,9 @@ mod tests {
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
-        let mut trades = Vec::new();
-        orderbook.check_for_trades(&mut trades);
-        // Then
+        orderbook.check_for_trades();
         // Then
         assert!(orderbook.bids.is_empty());
         assert_eq!(orderbook.asks.pop().unwrap().quantity, 6);
-    }
-
-    #[test]
-    fn orderbook_test() {
-        let mut orderbook = OrderBook::new();
-        let mut executed_trades: Vec<Trade> = Vec::with_capacity(1000000);
-
-        orderbook.apply_order(Order::new(1, 100, 10, BUY));
-        orderbook.apply_order(Order::new(2, 100, 5, SELL));
-        orderbook.apply_order(Order::new(3, 100, 10, SELL));
-
-        orderbook.check_for_trades(&mut executed_trades);
-
-        println!("Matched Trades: {}", executed_trades.len());
-        println!("Trades:");
-        println!(
-            "{0: <3} | {1: <5} | {2: <5} | {3: <4}",
-            "Qty", "Px", "B/CId", "S/CId"
-        );
-
-        for trade in &executed_trades {
-            println!("{:?}", trade);
-        }
-
-        println!("{:?}", orderbook);
-
-        executed_trades.clear();
     }
 }

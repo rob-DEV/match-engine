@@ -29,6 +29,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "api"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "common",
+ "rand",
+ "serde",
+ "serde_json",
+ "skytable",
+ "tokio",
+]
+
+[[package]]
 name = "async-trait"
 version = "0.1.77"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -175,6 +188,13 @@ name = "cfg-if"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
+
+[[package]]
+name = "common"
+version = "0.1.0"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "config"
@@ -1055,7 +1075,10 @@ dependencies = [
 name = "server"
 version = "0.1.0"
 dependencies = [
+ "common",
  "config",
+ "rand",
+ "serde_json",
  "tokio",
 ]
 
@@ -1302,18 +1325,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c06d3da6113f116aaee68e4d601191614c9053067f9ab7f6edbcb161237daa54"
 dependencies = [
  "once_cell",
-]
-
-[[package]]
-name = "trading-api"
-version = "0.1.0"
-dependencies = [
- "axum",
- "rand",
- "serde",
- "serde_json",
- "skytable",
- "tokio",
 ]
 
 [[package]]

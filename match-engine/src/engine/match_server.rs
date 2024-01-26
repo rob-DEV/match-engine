@@ -1,10 +1,14 @@
-use std::io::BufRead;
 use std::sync::mpsc::Sender;
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use tokio::io::AsyncReadExt;
+use rand::random;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-use crate::engine::domain::{Order, Side};
+use common::message::{GatewayMessage, NewOrderAck, TradeAction};
+
+use crate::domain::order::Order;
+use crate::domain::side::Side;
 
 pub struct MatchServer {
     server: TcpListener,
@@ -29,33 +33,45 @@ impl MatchServer {
     }
 
     async fn order_entry_handler(mut socket: TcpStream, order_tx: Sender<Order>) {
-        loop {
-            let mut str_buf = String::new();
+        let (mut rx, mut tx) = socket.split();
+        let mut buf: [u8; 512] = [0; 512];
 
-            let n = socket
-                .read_to_string(&mut str_buf)
-                .await
-                .expect("failed to read data from socket");
+        match rx.read(&mut buf).await {
+            Ok(bytes) => {
+                if bytes == 0 { return; }
 
-            if n == 0 {
-                return;
-            }
-
-            let mut token_iterator = str_buf.split("|");
-
-            if token_iterator.clone().count() == 3 {
-                let side = match token_iterator.next().unwrap().to_uppercase().as_str() {
-                    "B" => Side::BUY,
-                    "S" => Side::SELL,
-                    _ => panic!()
+                let order_message: GatewayMessage = match serde_json::from_slice(&buf[..bytes]) {
+                    Ok(order_message) => order_message,
+                    Err(err) => panic!("Error {}", err)
                 };
 
-                let qty: u32 = token_iterator.next().unwrap().parse().unwrap();
-                let px: u32 = token_iterator.next().unwrap().parse().unwrap();
+                match order_message {
+                    GatewayMessage::NewOrder(n) => {
+                        let side = match n.action {
+                            TradeAction::BUY => Side::BUY,
+                            TradeAction::SELL => Side::SELL
+                        };
 
-                let order_for_book = Order::new(1, qty, px, side);
-                order_tx.send(order_for_book).unwrap();
+                        let engine_order = Order::new(random::<u32>(), n.qty, n.px, side);
+                        order_tx.send(engine_order).unwrap();
+
+                        let new_order_ack = GatewayMessage::NewOrderAck(NewOrderAck {
+                            action: n.action,
+                            id: engine_order.identifier,
+                            px: n.px,
+                            qty: n.qty,
+                            ack_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
+                        });
+
+                        match serde_json::to_vec(&new_order_ack) {
+                            Ok(bytes) => tx.write_all(&*bytes).await.unwrap(),
+                            Err(err) => panic!("Error {}", err)
+                        };
+                    }
+                    _ => {}
+                }
             }
+            Err(_) => {}
         }
     }
 }

@@ -1,5 +1,5 @@
 [package]
-name = "trading-api"
+name = "api"
 version = "0.1.0"
 edition = "2021"
 
@@ -12,3 +12,4 @@ serde_json = "1.0.111"
 skytable = "0.8.5"
 serde = { version = "1.0.195", features = ["derive"] }
 rand = "0.8.5"
+common = { version = "0.1.0", path = "../common" }
