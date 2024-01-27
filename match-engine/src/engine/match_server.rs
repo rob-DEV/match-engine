@@ -73,7 +73,7 @@ impl MatchServer {
 
         return GatewayMessage::NewOrderAck(NewOrderAck {
             action: n.action,
-            id: engine_order.identifier,
+            id: engine_order.id,
             px: n.px,
             qty: n.qty,
             ack_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),

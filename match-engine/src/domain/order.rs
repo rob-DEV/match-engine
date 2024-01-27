@@ -5,7 +5,7 @@ use crate::domain::side::Side;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Order {
-    pub identifier: u32,
+    pub id: u32,
     pub price: u32,
     pub quantity: u32,
     pub side: Side,
@@ -13,9 +13,9 @@ pub struct Order {
 }
 
 impl Order {
-    pub fn new(identifier: u32, quantity: u32, price: u32, side: Side) -> Order {
+    pub fn new(id: u32, quantity: u32, price: u32, side: Side) -> Order {
         Order {
-            identifier,
+            id,
             quantity,
             price,
             side,

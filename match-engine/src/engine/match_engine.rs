@@ -5,48 +5,48 @@ use std::{
 };
 
 use crate::domain::order::Order;
-use crate::engine::order_book::OrderBook;
+use crate::engine::book::Book;
 
 pub struct MatchEngine {
-    fifo_orderbook: Arc<Mutex<OrderBook>>,
+    fifo_book: Arc<Mutex<Book>>,
 }
 
 impl MatchEngine {
     pub fn new() -> MatchEngine {
         MatchEngine {
-            fifo_orderbook: Arc::new(Mutex::new(OrderBook::new())),
+            fifo_book: Arc::new(Mutex::new(Book::new())),
         }
     }
 
     pub fn run(&self, order_rx: Receiver<Order>) {
-        let orderbook_handle: Arc<Mutex<OrderBook>> = self.fifo_orderbook.clone();
+        let book_handle_order_entry_thread: Arc<Mutex<Book>> = self.fifo_book.clone();
 
-        let _order_submission_thread_handle = thread::Builder::new().name("ORDER-SUBMISSION-THREAD".to_owned()).spawn(move || {
+        let _order_submission_thread_handle = thread::Builder::new().name("ORDER-ENTRY-THREAD".to_owned()).spawn(move || {
             while let Ok(order_to_book) = order_rx.recv() {
-                let mut orderbook = match orderbook_handle.lock() {
-                    Ok(orderbook) => orderbook,
-                    Err(_) => panic!("Failed to lock orderbook!"),
+                let mut book = match book_handle_order_entry_thread.lock() {
+                    Ok(book) => book,
+                    Err(_) => panic!("Failed to lock the order book!"),
                 };
 
-                orderbook.apply_order(order_to_book)
+                book.apply_order(order_to_book)
             }
         });
 
-        let orderbook_handle: Arc<Mutex<OrderBook>> = self.fifo_orderbook.clone();
+        let book_handle_cycle_thread: Arc<Mutex<Book>> = self.fifo_book.clone();
 
-        let _match_thread_handle = thread::Builder::new().name("MATCH-CYCLE-THREAD".to_owned()).spawn(move || MatchEngine::matching_cycle(orderbook_handle));
+        let _match_thread_handle = thread::Builder::new().name("MATCH-CYCLE-THREAD".to_owned()).spawn(move || MatchEngine::matching_cycle(book_handle_cycle_thread));
     }
 
 
-    fn matching_cycle(orderbook_handle: Arc<Mutex<OrderBook>>) -> ! {
+    fn matching_cycle(book_handle: Arc<Mutex<Book>>) -> ! {
         loop {
             let cycle_timer = Instant::now();
-            let mut orderbook = match orderbook_handle.lock() {
-                Ok(orderbook) => orderbook,
-                Err(_) => panic!("Failed to lock orderbook!"),
+            let mut book = match book_handle.lock() {
+                Ok(book) => book,
+                Err(_) => panic!("Failed to lock the order book!"),
             };
 
-            let matches = orderbook.check_for_trades();
+            let matches = book.check_for_trades();
 
             if matches > 0 {
                 println!("cycle ns: {} matches: {}", cycle_timer.elapsed().as_nanos(), matches);

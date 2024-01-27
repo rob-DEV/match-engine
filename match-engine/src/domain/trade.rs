@@ -13,7 +13,7 @@ impl Debug for Trade {
         write!(
             f,
             "{0: <3} | {1: <5} | {2: <5} | {3: <4}",
-            self.filled_quantity, self.bid.price, self.bid.identifier, self.ask.identifier
+            self.filled_quantity, self.bid.price, self.bid.id, self.ask.id
         )
     }
 }

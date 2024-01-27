@@ -6,14 +6,14 @@ use crate::domain::order::Order;
 use crate::domain::side::Side;
 use crate::domain::trade::Trade;
 
-pub struct OrderBook {
+pub struct Book {
     asks: BinaryHeap<Order>,
     bids: BinaryHeap<Order>,
 }
 
-impl OrderBook {
-    pub fn new() -> OrderBook {
-        OrderBook {
+impl Book {
+    pub fn new() -> Book {
+        Book {
             asks: BinaryHeap::with_capacity(10000000),
             bids: BinaryHeap::with_capacity(10000000),
         }
@@ -99,9 +99,9 @@ impl OrderBook {
     }
 }
 
-impl Debug for OrderBook {
+impl Debug for Book {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "-------------------Orderbook-------------------").unwrap();
+        writeln!(f, "-------------------Order Book-------------------").unwrap();
         writeln!(
             f,
             "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
@@ -112,7 +112,7 @@ impl Debug for OrderBook {
             writeln!(
                 f,
                 "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
-                bid.identifier, "BUY", bid.quantity, bid.price
+                bid.id, "BUY", bid.quantity, bid.price
             ).unwrap();
         }
         writeln!(f, "-----------------------------------------------").unwrap();
@@ -129,7 +129,7 @@ impl Debug for OrderBook {
             writeln!(
                 f,
                 "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
-                ask.identifier, "SELL", ask.quantity, ask.price
+                ask.id, "SELL", ask.quantity, ask.price
             )
                 .unwrap();
         }
@@ -139,7 +139,7 @@ impl Debug for OrderBook {
             "ClientId", "B/S", "Qty", "Px"
         )
             .unwrap();
-        write!(f, "-----------------Orderbook End-----------------")
+        write!(f, "-----------------Order Book End-----------------")
     }
 }
 
@@ -147,7 +147,7 @@ impl Debug for OrderBook {
 mod tests {
     use crate::domain::order::Order;
     use crate::domain::side::Side;
-    use crate::engine::order_book::OrderBook;
+    use crate::engine::book::Book;
 
     #[test]
     fn simple_like_for_like_match() {
@@ -155,7 +155,7 @@ mod tests {
         let buy_order = Order::new(1, 1, 10, Side::BUY);
         let sell_order = Order::new(1, 1, 10, Side::SELL);
 
-        let mut orderbook = OrderBook::new();
+        let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
@@ -171,7 +171,7 @@ mod tests {
         let buy_order = Order::new(1, 10, 1, Side::BUY);
         let sell_order = Order::new(1, 6, 1, Side::SELL);
 
-        let mut orderbook = OrderBook::new();
+        let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
@@ -187,7 +187,7 @@ mod tests {
         let buy_order = Order::new(1, 4, 1, Side::BUY);
         let sell_order = Order::new(1, 10, 1, Side::SELL);
 
-        let mut orderbook = OrderBook::new();
+        let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
