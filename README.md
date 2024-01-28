@@ -6,7 +6,7 @@ Experimental trade matching engine written in Rust.
 
 - Tokio RT Match Engine Gateway
 - Order Entry / Market Data API
-- API -> Messaging System
+- API -> Engine Messaging System
 
 ## Usage
 
