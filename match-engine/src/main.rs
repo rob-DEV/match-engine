@@ -1,4 +1,7 @@
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::env;
+use std::sync::{Arc, mpsc, Mutex};
+
+use common::message::MarketDataFullSnapshot;
 
 use crate::domain::order::Order;
 
@@ -7,13 +10,20 @@ mod domain;
 
 #[tokio::main]
 async fn main() {
-    let (order_entry_tx, engine_order_rx): (Sender<Order>, Receiver<Order>) = channel();
+    // Engine Channels - Order Entry & Market Data
+    let (order_entry_tx, order_entry_rx): (mpsc::Sender<Order>, mpsc::Receiver<Order>) = mpsc::channel();
+    let market_data_snapshot_mutex = Arc::new(Mutex::new(MarketDataFullSnapshot::new()));
 
     // Engine started on separate non-tokio thread
-    let match_engine = engine::match_engine::MatchEngine::new();
-    match_engine.run(engine_order_rx);
+    let md_mutex = market_data_snapshot_mutex.clone();
+    let match_engine = engine::match_engine::MatchEngine::new(order_entry_rx, md_mutex);
+    match_engine.run();
 
     // Order entry tokio rt
-    let match_server = engine::match_server::MatchServer::new();
-    match_server.await.run(order_entry_tx).await;
+    let app_host = env::var("APP_HOST").unwrap_or("127.0.0.1".to_string());
+    let app_port = env::var("APP_PORT").unwrap_or("3000".to_string());
+
+    let md_mutex = market_data_snapshot_mutex.clone();
+    let match_server = engine::match_server::MatchServer::new(app_host, app_port, order_entry_tx, md_mutex);
+    match_server.await.run().await;
 }

@@ -2,8 +2,12 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fmt::{Debug, Formatter};
 
+use itertools::Itertools;
+
+use common::message::{MarketDataEntry, MarketDataFullSnapshot, SnapshotType};
+
 use crate::domain::order::Order;
-use crate::domain::side::Side;
+use crate::domain::side::OrderAction;
 use crate::domain::trade::Trade;
 
 pub struct Book {
@@ -14,15 +18,73 @@ pub struct Book {
 impl Book {
     pub fn new() -> Book {
         Book {
-            asks: BinaryHeap::with_capacity(10000000),
             bids: BinaryHeap::with_capacity(10000000),
+            asks: BinaryHeap::with_capacity(10000000),
         }
     }
 
     pub fn apply_order(&mut self, order: Order) {
         match order.side {
-            Side::BUY => self.bids.push(order),
-            Side::SELL => self.asks.push(order),
+            OrderAction::BUY => self.bids.push(order),
+            OrderAction::SELL => self.asks.push(order),
+        };
+    }
+
+    pub fn remove_order(&mut self, order: Order) {
+        match order.side {
+            OrderAction::BUY => self.bids.retain(|x| x.id != order.id),
+            OrderAction::SELL => self.asks.retain(|x| x.id != order.id),
+        };
+    }
+
+    pub fn create_book_snapshot(&mut self) -> MarketDataFullSnapshot {
+        const MAX_SNAPSHOT_SIZE: usize = 10;
+
+        let mut bids_snapshot: [MarketDataEntry; MAX_SNAPSHOT_SIZE] = [MarketDataEntry { px: 0, qty: 0 }; MAX_SNAPSHOT_SIZE];
+        let mut asks_snapshot: [MarketDataEntry; MAX_SNAPSHOT_SIZE] = [MarketDataEntry { px: 0, qty: 0 }; MAX_SNAPSHOT_SIZE];
+
+        let mut bids = self.bids.clone();
+        let mut asks = self.asks.clone();
+
+        for i in 0..MAX_SNAPSHOT_SIZE {
+            if let Some(bid) = bids.pop() {
+                bids_snapshot[i] = MarketDataEntry { px: bid.px, qty: bid.qty };
+            }
+
+            if let Some(ask) = asks.pop() {
+                asks_snapshot[i] = MarketDataEntry { px: ask.px, qty: ask.qty };
+            }
+        }
+
+        return MarketDataFullSnapshot {
+            snapshot_type: SnapshotType::FullSnapshot,
+            bids: bids_snapshot.iter()
+                .take_while(|md_entry| md_entry.px > 0)
+                .group_by(|order| order.px)
+                .into_iter()
+                .map(|(px, records)| {
+                    let agg_qty = records.into_iter().fold(0, |mut aggregated_qty, nxt| {
+                        aggregated_qty += nxt.px;
+                        aggregated_qty
+                    });
+
+                    MarketDataEntry { px, qty: agg_qty }
+                })
+                .collect(),
+            asks: asks_snapshot.iter()
+                .rev()
+                .take_while(|md_entry| md_entry.px > 0)
+                .group_by(|order| order.px)
+                .into_iter()
+                .map(|(px, records)| {
+                    let agg_qty = records.into_iter().fold(0, |mut aggregated_qty, nxt| {
+                        aggregated_qty += nxt.px;
+                        aggregated_qty
+                    });
+
+                    MarketDataEntry { px, qty: agg_qty }
+                })
+                .collect(),
         };
     }
 
@@ -48,18 +110,18 @@ impl Book {
 
     fn attempt_order_match(&self, ask: &Order, bid: &Order) -> Option<(Trade, Option<Order>)> {
         let (ask, bid) = match (ask.side, bid.side) {
-            (Side::BUY, Side::SELL) => (bid, ask),
-            (Side::SELL, Side::BUY) => (ask, bid),
+            (OrderAction::BUY, OrderAction::SELL) => (bid, ask),
+            (OrderAction::SELL, OrderAction::BUY) => (ask, bid),
             (_, _) => return None,
         };
 
-        if ask.price > bid.price {
+        if ask.px > bid.px {
             return None;
         }
 
-        match ask.quantity.cmp(&bid.quantity) {
+        match ask.qty.cmp(&bid.qty) {
             Ordering::Equal => {
-                let quantity = ask.quantity;
+                let quantity = ask.qty;
                 Some((
                     Trade {
                         filled_quantity: quantity,
@@ -70,9 +132,9 @@ impl Book {
                 ))
             }
             Ordering::Greater => {
-                let quantity = bid.quantity;
+                let quantity = bid.qty;
                 let mut remainder = ask.clone();
-                remainder.quantity -= quantity;
+                remainder.qty -= quantity;
                 Some((
                     Trade {
                         filled_quantity: quantity,
@@ -83,9 +145,9 @@ impl Book {
                 ))
             }
             Ordering::Less => {
-                let quantity = ask.quantity;
+                let quantity = ask.qty;
                 let mut remainder = bid.clone();
-                remainder.quantity -= quantity;
+                remainder.qty -= quantity;
                 Some((
                     Trade {
                         filled_quantity: quantity,
@@ -112,7 +174,7 @@ impl Debug for Book {
             writeln!(
                 f,
                 "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
-                bid.id, "BUY", bid.quantity, bid.price
+                bid.id, "BUY", bid.qty, bid.px
             ).unwrap();
         }
         writeln!(f, "-----------------------------------------------").unwrap();
@@ -129,7 +191,7 @@ impl Debug for Book {
             writeln!(
                 f,
                 "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
-                ask.id, "SELL", ask.quantity, ask.price
+                ask.id, "SELL", ask.qty, ask.px
             )
                 .unwrap();
         }
@@ -145,15 +207,15 @@ impl Debug for Book {
 
 #[cfg(test)]
 mod tests {
-    use crate::domain::order::Order;
-    use crate::domain::side::Side;
+    use crate::domain::order::{Order, OrderType};
+    use crate::domain::side::OrderAction;
     use crate::engine::book::Book;
 
     #[test]
     fn simple_like_for_like_match() {
         // Given
-        let buy_order = Order::new(1, 1, 10, Side::BUY);
-        let sell_order = Order::new(1, 1, 10, Side::SELL);
+        let buy_order = Order::new(1, OrderType::New, 1, 10, OrderAction::BUY);
+        let sell_order = Order::new(1, OrderType::New, 1, 10, OrderAction::SELL);
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
@@ -168,8 +230,8 @@ mod tests {
     #[test]
     fn buy_order_qty_remaining_on_book() {
         // Given
-        let buy_order = Order::new(1, 10, 1, Side::BUY);
-        let sell_order = Order::new(1, 6, 1, Side::SELL);
+        let buy_order = Order::new(1, OrderType::New, 10, 1, OrderAction::BUY);
+        let sell_order = Order::new(1, OrderType::New, 6, 1, OrderAction::SELL);
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
@@ -178,14 +240,14 @@ mod tests {
         orderbook.check_for_trades();
         // Then
         assert!(orderbook.asks.is_empty());
-        assert_eq!(orderbook.bids.pop().unwrap().quantity, 4)
+        assert_eq!(orderbook.bids.pop().unwrap().qty, 4)
     }
 
     #[test]
     fn sell_order_qty_remaining_on_book() {
         // Given
-        let buy_order = Order::new(1, 4, 1, Side::BUY);
-        let sell_order = Order::new(1, 10, 1, Side::SELL);
+        let buy_order = Order::new(1, OrderType::New, 4, 1, OrderAction::BUY);
+        let sell_order = Order::new(1, OrderType::New, 10, 1, OrderAction::SELL);
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
@@ -194,6 +256,24 @@ mod tests {
         orderbook.check_for_trades();
         // Then
         assert!(orderbook.bids.is_empty());
-        assert_eq!(orderbook.asks.pop().unwrap().quantity, 6);
+        assert_eq!(orderbook.asks.pop().unwrap().qty, 6);
+    }
+
+    #[test]
+    fn sell_order_cancel_removes_order_from_book() {
+        // Given
+        let buy_order = Order::new(1, OrderType::New, 4, 1, OrderAction::BUY);
+        let sell_order = Order::new(1, OrderType::New, 10, 1, OrderAction::SELL);
+
+        let mut orderbook = Book::new();
+        orderbook.apply_order(buy_order);
+        orderbook.apply_order(sell_order);
+        // When
+        let cancel_order = Order::new(1, OrderType::Cancel, 0, 0, OrderAction::SELL);
+        orderbook.remove_order(cancel_order);
+        orderbook.check_for_trades();
+        // Then
+        assert_eq!(orderbook.bids.pop().unwrap().qty, 4);
+        assert!(orderbook.asks.is_empty());
     }
 }
