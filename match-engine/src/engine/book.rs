@@ -211,16 +211,26 @@ impl Debug for Book {
 
 #[cfg(test)]
 mod tests {
-    use common::message::{CancelOrder, OrderAction};
-
-    use crate::domain::order::LimitOrder;
-    use crate::engine::book::Book;
+    use super::*;
 
     #[test]
-    fn simple_like_for_like_match() {
+    fn like_for_like_price_match() {
         // Given
-        let buy_order = LimitOrder::new(1, 1, 10, OrderAction::BUY);
-        let sell_order = LimitOrder::new(1, 1, 10, OrderAction::SELL);
+        let buy_order = LimitOrder {
+            id: 1,
+            px: 1,
+            qty: 10,
+            side: OrderAction::BUY,
+            placed_time: 0,
+        };
+
+        let sell_order = LimitOrder {
+            id: 1,
+            px: 1,
+            qty: 10,
+            side: OrderAction::SELL,
+            placed_time: 0,
+        };
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
@@ -233,10 +243,61 @@ mod tests {
     }
 
     #[test]
+    fn fifo_like_for_like_match() {
+        // Given
+        let buy_order = LimitOrder {
+            id: 1,
+            px: 1,
+            qty: 10,
+            side: OrderAction::BUY,
+            placed_time: 0,
+        };
+
+        let sell_order = LimitOrder {
+            id: 2,
+            px: 1,
+            qty: 10,
+            side: OrderAction::SELL,
+            placed_time: 0,
+        };
+
+        let latter_sell_order = LimitOrder {
+            id: 3,
+            px: 1,
+            qty: 10,
+            side: OrderAction::SELL,
+            placed_time: 0,
+        };
+
+        let mut orderbook = Book::new();
+        orderbook.apply_order(buy_order);
+        orderbook.apply_order(sell_order);
+        orderbook.apply_order(latter_sell_order);
+        // When
+        orderbook.check_for_trades();
+        // Then
+        assert!(orderbook.bids.is_empty());
+        assert_eq!(*orderbook.asks.iter().next().unwrap(), latter_sell_order);
+    }
+
+    #[test]
     fn buy_order_qty_remaining_on_book() {
         // Given
-        let buy_order = LimitOrder::new(1, 10, 1, OrderAction::BUY);
-        let sell_order = LimitOrder::new(1, 6, 1, OrderAction::SELL);
+        let buy_order = LimitOrder {
+            id: 1,
+            px: 1,
+            qty: 10,
+            side: OrderAction::BUY,
+            placed_time: 0,
+        };
+
+        let sell_order = LimitOrder {
+            id: 1,
+            px: 1,
+            qty: 6,
+            side: OrderAction::SELL,
+            placed_time: 0,
+        };
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
@@ -251,8 +312,21 @@ mod tests {
     #[test]
     fn sell_order_qty_remaining_on_book() {
         // Given
-        let buy_order = LimitOrder::new(1, 4, 1, OrderAction::BUY);
-        let sell_order = LimitOrder::new(1, 10, 1, OrderAction::SELL);
+        let buy_order = LimitOrder {
+            id: 1,
+            px: 1,
+            qty: 4,
+            side: OrderAction::BUY,
+            placed_time: 0,
+        };
+
+        let sell_order = LimitOrder {
+            id: 1,
+            px: 1,
+            qty: 10,
+            side: OrderAction::SELL,
+            placed_time: 0,
+        };
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
@@ -267,8 +341,21 @@ mod tests {
     #[test]
     fn sell_order_cancel_removes_order_from_book() {
         // Given
-        let buy_order = LimitOrder::new(1, 4, 1, OrderAction::BUY);
-        let sell_order = LimitOrder::new(1, 10, 1, OrderAction::SELL);
+        let buy_order = LimitOrder {
+            id: 1,
+            px: 1,
+            qty: 4,
+            side: OrderAction::BUY,
+            placed_time: 0,
+        };
+
+        let sell_order = LimitOrder {
+            id: 1,
+            px: 1,
+            qty: 10,
+            side: OrderAction::SELL,
+            placed_time: 0,
+        };
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);

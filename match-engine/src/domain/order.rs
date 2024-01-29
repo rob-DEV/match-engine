@@ -1,5 +1,4 @@
 use std::cmp::Ordering;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use common::message::{CancelOrder, OrderAction};
 
@@ -19,16 +18,6 @@ pub struct LimitOrder {
 }
 
 impl LimitOrder {
-    pub fn new(id: u32, quantity: u32, price: u32, side: OrderAction) -> LimitOrder {
-        LimitOrder {
-            id,
-            qty: quantity,
-            px: price,
-            side,
-            placed_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
-        }
-    }
-
     fn partial_cmp_buy(&self, other: &Self) -> Option<Ordering> {
         Some(self.px.cmp(&other.px))
     }

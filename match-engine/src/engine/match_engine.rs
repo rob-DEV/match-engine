@@ -55,7 +55,8 @@ impl MatchEngine {
             let matches = book.check_for_trades();
 
             if matches > 0 {
-                // println!("cycle ns: {} matches: {}", cycle_timer.elapsed().as_nanos(), matches);
+                println!("cycle ns: {} matches: {}", cycle_timer.elapsed().as_nanos(), matches);
+
                 let (bids, asks) = book.size();
                 println!("book bids: {} asks: {}", bids, asks);
 
