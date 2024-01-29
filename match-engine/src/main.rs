@@ -20,10 +20,9 @@ async fn main() {
     match_engine.run();
 
     // Order entry tokio rt
-    let app_host = env::var("APP_HOST").unwrap_or("127.0.0.1".to_string());
     let app_port = env::var("APP_PORT").unwrap_or("3000".to_string());
 
     let md_mutex = market_data_snapshot_mutex.clone();
-    let match_server = engine::match_server::MatchServer::new(app_host, app_port, order_entry_tx, md_mutex);
+    let match_server = engine::match_server::MatchServer::new(app_port, order_entry_tx, md_mutex);
     match_server.await.run().await;
 }

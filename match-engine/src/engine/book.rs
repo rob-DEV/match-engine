@@ -4,34 +4,34 @@ use std::fmt::{Debug, Formatter};
 
 use itertools::Itertools;
 
-use common::message::{MarketDataEntry, MarketDataFullSnapshot, SnapshotType};
+use common::message::{CancelOrder, MarketDataEntry, MarketDataFullSnapshot, SnapshotType};
+use common::message::OrderAction;
 
-use crate::domain::order::Order;
-use crate::domain::side::OrderAction;
+use crate::domain::order::LimitOrder;
 use crate::domain::trade::Trade;
 
 pub struct Book {
-    asks: BinaryHeap<Order>,
-    bids: BinaryHeap<Order>,
+    asks: BinaryHeap<LimitOrder>,
+    bids: BinaryHeap<LimitOrder>,
 }
 
 impl Book {
     pub fn new() -> Book {
         Book {
-            bids: BinaryHeap::with_capacity(10000000),
-            asks: BinaryHeap::with_capacity(10000000),
+            bids: BinaryHeap::with_capacity(1_000_000),
+            asks: BinaryHeap::with_capacity(1_000_000),
         }
     }
 
-    pub fn apply_order(&mut self, order: Order) {
+    pub fn apply_order(&mut self, order: LimitOrder) {
         match order.side {
             OrderAction::BUY => self.bids.push(order),
             OrderAction::SELL => self.asks.push(order),
         };
     }
 
-    pub fn remove_order(&mut self, order: Order) {
-        match order.side {
+    pub fn remove_order(&mut self, order: CancelOrder) {
+        match order.action {
             OrderAction::BUY => self.bids.retain(|x| x.id != order.id),
             OrderAction::SELL => self.asks.retain(|x| x.id != order.id),
         };
@@ -108,7 +108,11 @@ impl Book {
         return executions;
     }
 
-    fn attempt_order_match(&self, ask: &Order, bid: &Order) -> Option<(Trade, Option<Order>)> {
+    pub fn size(&self) -> (usize, usize) {
+        (self.bids.len(), self.asks.len())
+    }
+
+    fn attempt_order_match(&self, ask: &LimitOrder, bid: &LimitOrder) -> Option<(Trade, Option<LimitOrder>)> {
         let (ask, bid) = match (ask.side, bid.side) {
             (OrderAction::BUY, OrderAction::SELL) => (bid, ask),
             (OrderAction::SELL, OrderAction::BUY) => (ask, bid),
@@ -179,7 +183,7 @@ impl Debug for Book {
         }
         writeln!(f, "-----------------------------------------------").unwrap();
 
-        let ask_vec: Vec<Order> = self
+        let ask_vec: Vec<LimitOrder> = self
             .asks
             .clone()
             .into_sorted_vec()
@@ -207,15 +211,16 @@ impl Debug for Book {
 
 #[cfg(test)]
 mod tests {
-    use crate::domain::order::{Order, OrderType};
-    use crate::domain::side::OrderAction;
+    use common::message::{CancelOrder, OrderAction};
+
+    use crate::domain::order::LimitOrder;
     use crate::engine::book::Book;
 
     #[test]
     fn simple_like_for_like_match() {
         // Given
-        let buy_order = Order::new(1, OrderType::New, 1, 10, OrderAction::BUY);
-        let sell_order = Order::new(1, OrderType::New, 1, 10, OrderAction::SELL);
+        let buy_order = LimitOrder::new(1, 1, 10, OrderAction::BUY);
+        let sell_order = LimitOrder::new(1, 1, 10, OrderAction::SELL);
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
@@ -230,8 +235,8 @@ mod tests {
     #[test]
     fn buy_order_qty_remaining_on_book() {
         // Given
-        let buy_order = Order::new(1, OrderType::New, 10, 1, OrderAction::BUY);
-        let sell_order = Order::new(1, OrderType::New, 6, 1, OrderAction::SELL);
+        let buy_order = LimitOrder::new(1, 10, 1, OrderAction::BUY);
+        let sell_order = LimitOrder::new(1, 6, 1, OrderAction::SELL);
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
@@ -246,8 +251,8 @@ mod tests {
     #[test]
     fn sell_order_qty_remaining_on_book() {
         // Given
-        let buy_order = Order::new(1, OrderType::New, 4, 1, OrderAction::BUY);
-        let sell_order = Order::new(1, OrderType::New, 10, 1, OrderAction::SELL);
+        let buy_order = LimitOrder::new(1, 4, 1, OrderAction::BUY);
+        let sell_order = LimitOrder::new(1, 10, 1, OrderAction::SELL);
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
@@ -262,14 +267,17 @@ mod tests {
     #[test]
     fn sell_order_cancel_removes_order_from_book() {
         // Given
-        let buy_order = Order::new(1, OrderType::New, 4, 1, OrderAction::BUY);
-        let sell_order = Order::new(1, OrderType::New, 10, 1, OrderAction::SELL);
+        let buy_order = LimitOrder::new(1, 4, 1, OrderAction::BUY);
+        let sell_order = LimitOrder::new(1, 10, 1, OrderAction::SELL);
 
         let mut orderbook = Book::new();
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
-        let cancel_order = Order::new(1, OrderType::Cancel, 0, 0, OrderAction::SELL);
+        let cancel_order = CancelOrder {
+            action: OrderAction::SELL,
+            id: 1,
+        };
         orderbook.remove_order(cancel_order);
         orderbook.check_for_trades();
         // Then

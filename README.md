@@ -32,7 +32,7 @@ curl --location 'http://localhost:3000/order' \
 --header 'Content-Type: application/json' \
 --data '{
     "NewOrder": {
-        "action": "SELL",
+        "action": "BUY",
         "px": 50,
         "qty": 1000
     }
@@ -45,10 +45,10 @@ The engine will ACK new Orders.
 {
     "NewOrderAck": {
         "ack_time": 1706441585242165679,
-        "action": "SELL",
+        "action": "BUY",
         "id": 451748013,
-        "px": 100,
-        "qty": 1003
+        "px": 50,
+        "qty": 100
     }
 }
 ```
@@ -113,7 +113,7 @@ The engine will provide the latest market data, currently there is no state pers
 
 ## Building
 
-If desired, you can build Rust-template yourself. You will need a working `Rust` and `Cargo`
+If desired, you can build the engine yourself. You will need a working `Rust` and `Cargo`
 setup. [Rustup](https://rustup.rs/) is the simplest way to set this up on either Windows, Mac or Linux.
 
 Once the prerequisites have been installed, compilation on your native platform is as simple as running the following in
@@ -125,4 +125,4 @@ cargo build --release
 
 ## License
 
-Rust-template itself is licensed under the [MIT license](LICENSE) and includes this as the default project license.
+The project is licensed under the [MIT license](LICENSE) and includes this as the default project license.

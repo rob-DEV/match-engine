@@ -8,13 +8,12 @@ use rand::random;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-use common::message::{CancelOrder, CancelOrderAck, GatewayMessage, MarketDataFullSnapshot, MarketDataRequest, MarketDataTopOfBookSnapshot, NewOrder, NewOrderAck, SnapshotType, TradeAction};
+use common::message::{CancelOrder, CancelOrderAck, GatewayMessage, MarketDataFullSnapshot, MarketDataRequest, MarketDataTopOfBookSnapshot, NewOrder, NewOrderAck, SnapshotType};
 use common::message::EngineError::GeneralError;
 use common::message::GatewayMessage::MarketDataResponse;
 use common::message::MarketDataResponse::{FullSnapshot, TopOfBook};
 
-use crate::domain::order::{Order, OrderType};
-use crate::domain::side::OrderAction;
+use crate::domain::order::{LimitOrder, Order};
 
 pub struct MatchServer {
     match_server_listener: TcpListener,
@@ -23,8 +22,10 @@ pub struct MatchServer {
 }
 
 impl MatchServer {
-    pub async fn new(app_host: String, app_port: String, order_entry_tx: Sender<Order>, market_data_rx: Arc<Mutex<MarketDataFullSnapshot>>) -> MatchServer {
-        let socket_addr = SocketAddr::new(app_host.parse().unwrap(), app_port.parse().unwrap());
+    pub async fn new(app_port: String, order_entry_tx: Sender<Order>, market_data_rx: Arc<Mutex<MarketDataFullSnapshot>>) -> MatchServer {
+        println!("Starting Match Server on port {}", app_port);
+
+        let socket_addr = SocketAddr::new("127.0.0.1".parse().unwrap(), app_port.parse().unwrap());
         MatchServer {
             match_server_listener: TcpListener::bind(socket_addr).await.unwrap(),
             order_entry_tx_mutex: Arc::new(Mutex::new(order_entry_tx)),
@@ -33,7 +34,6 @@ impl MatchServer {
     }
 
     pub async fn run(&self) {
-        // let market_data_rx_mutex = self.market_data_rx_mutex.clone();
         let order_entry_tx_mutex = self.order_entry_tx_mutex.clone();
 
         loop {
@@ -80,17 +80,19 @@ impl MatchServer {
     }
 
     async fn handle_new_order(order_tx: Sender<Order>, new_order: NewOrder) -> GatewayMessage {
-        let side = match new_order.action {
-            TradeAction::BUY => OrderAction::BUY,
-            TradeAction::SELL => OrderAction::SELL
+        let limit_order = LimitOrder {
+            id: random::<u32>(),
+            px: new_order.px,
+            qty: new_order.qty,
+            side: new_order.action,
+            placed_time: 0,
         };
 
-        let engine_order = Order::new(random::<u32>(), OrderType::New, new_order.qty, new_order.px, side);
-        order_tx.send(engine_order).unwrap();
+        order_tx.send(Order::New(limit_order)).unwrap();
 
         return GatewayMessage::NewOrderAck(NewOrderAck {
             action: new_order.action,
-            id: engine_order.id,
+            id: limit_order.id,
             px: new_order.px,
             qty: new_order.qty,
             ack_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
@@ -98,13 +100,12 @@ impl MatchServer {
     }
 
     async fn handle_cancel_order(order_tx: Sender<Order>, cancel_order: CancelOrder) -> GatewayMessage {
-        let side = match cancel_order.action {
-            TradeAction::BUY => OrderAction::BUY,
-            TradeAction::SELL => OrderAction::SELL
+        let cancel = CancelOrder {
+            action: cancel_order.action,
+            id: cancel_order.id,
         };
 
-        let engine_order = Order::new(cancel_order.order_id, OrderType::Cancel, 0, 0, side);
-        order_tx.send(engine_order).unwrap();
+        order_tx.send(Order::Cancel(cancel)).unwrap();
 
         return GatewayMessage::CancelOrderAck(CancelOrderAck {
             ack_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),

@@ -69,21 +69,21 @@ pub enum MarketDataResponse {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TradeAction {
+pub enum OrderAction {
     BUY,
     SELL,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewOrder {
-    pub action: TradeAction,
+    pub action: OrderAction,
     pub px: u32,
     pub qty: u32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewOrderAck {
-    pub action: TradeAction,
+    pub action: OrderAction,
     pub id: u32,
     pub px: u32,
     pub qty: u32,
@@ -92,8 +92,8 @@ pub struct NewOrderAck {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CancelOrder {
-    pub action: TradeAction,
-    pub order_id: u32,
+    pub action: OrderAction,
+    pub id: u32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

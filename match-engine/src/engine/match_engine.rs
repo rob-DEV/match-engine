@@ -6,7 +6,7 @@ use std::{
 
 use common::message::MarketDataFullSnapshot;
 
-use crate::domain::order::{Order, OrderType};
+use crate::domain::order::Order;
 use crate::engine::book::Book;
 
 pub struct MatchEngine {
@@ -17,6 +17,8 @@ pub struct MatchEngine {
 
 impl MatchEngine {
     pub fn new(order_rx: Receiver<Order>, market_data_tx: Arc<Mutex<MarketDataFullSnapshot>>) -> MatchEngine {
+        println!("Initializing Match Engine");
+
         MatchEngine {
             book_mutex: Arc::new(Mutex::new(Book::new())),
             order_rx_mutex: Arc::new(Mutex::new(order_rx)),
@@ -31,9 +33,9 @@ impl MatchEngine {
         let _order_submission_thread_handle = thread::Builder::new().name("ORDER-ENTRY-THREAD".to_owned()).spawn(move || {
             while let Ok(order) = order_tx_mutex.lock().unwrap().recv() {
                 let mut book = book_mutex.lock().unwrap();
-                match order.order_type {
-                    OrderType::New => book.apply_order(order),
-                    OrderType::Cancel => book.remove_order(order)
+                match order {
+                    Order::New(new_order) => book.apply_order(new_order),
+                    Order::Cancel(cancel_order) => book.remove_order(cancel_order)
                 }
             }
         });
@@ -53,13 +55,15 @@ impl MatchEngine {
             let matches = book.check_for_trades();
 
             if matches > 0 {
-                println!("cycle ns: {} matches: {}", cycle_timer.elapsed().as_nanos(), matches);
-            }
+                // println!("cycle ns: {} matches: {}", cycle_timer.elapsed().as_nanos(), matches);
+                let (bids, asks) = book.size();
+                println!("book bids: {} asks: {}", bids, asks);
 
-            let book_snapshot = book.create_book_snapshot();
-            let mut snapshot = md_mutex.lock().unwrap();
-            snapshot.asks = book_snapshot.asks;
-            snapshot.bids = book_snapshot.bids;
+                let book_snapshot = book.create_book_snapshot();
+                let mut snapshot = md_mutex.lock().unwrap();
+                snapshot.asks = book_snapshot.asks;
+                snapshot.bids = book_snapshot.bids;
+            }
         }
     }
 }

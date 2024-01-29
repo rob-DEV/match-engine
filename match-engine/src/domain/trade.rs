@@ -1,11 +1,11 @@
 use std::fmt::{Debug, Formatter};
 
-use crate::domain::order::Order;
+use crate::domain::order::LimitOrder;
 
 pub struct Trade {
     pub filled_quantity: u32,
-    pub ask: Order,
-    pub bid: Order,
+    pub ask: LimitOrder,
+    pub bid: LimitOrder,
 }
 
 impl Debug for Trade {
