@@ -1,13 +1,13 @@
-use std::{mem, sync::{Arc, mpsc::Receiver, Mutex}, thread, time::Instant};
-use std::mem::MaybeUninit;
+use std::{sync::{Arc, mpsc::Receiver, Mutex}, thread, time::Instant};
 
 use common::domain::MarketDataFullSnapshot;
 
 use crate::domain::execution::Execution;
 use crate::domain::order::Order;
 use crate::engine::book::Book;
+use crate::memory::util::uninitialized_arr;
 
-const MAX_EXECUTIONS_PER_CYCLE: usize = 10000;
+const MAX_EXECUTIONS_PER_CYCLE: usize = 1000;
 
 pub struct MatchEngine {
     book_mutex: Arc<Mutex<Book>>,
@@ -48,12 +48,7 @@ impl MatchEngine {
 
 
     fn matching_cycle(book_handle: Arc<Mutex<Book>>, md_mutex: Arc<Mutex<MarketDataFullSnapshot>>) -> ! {
-        let mut executions_buffer = {
-            let raw_buffer: [MaybeUninit<Execution>; MAX_EXECUTIONS_PER_CYCLE] = unsafe {
-                MaybeUninit::uninit().assume_init()
-            };
-            unsafe { mem::transmute::<_, [Execution; MAX_EXECUTIONS_PER_CYCLE]>(raw_buffer) }
-        };
+        let mut executions_buffer = uninitialized_arr::<Execution, MAX_EXECUTIONS_PER_CYCLE>();
 
 
         loop {

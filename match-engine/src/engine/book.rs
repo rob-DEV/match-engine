@@ -205,6 +205,8 @@ impl Debug for Book {
 
 #[cfg(test)]
 mod tests {
+    use crate::memory::util::uninitialized_arr;
+
     use super::*;
 
     #[test]
@@ -230,8 +232,9 @@ mod tests {
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
-        orderbook.check_for_trades();
-        // Then
+        let mut executions_buffer: [Execution; 10] = uninitialized_arr();
+
+        orderbook.check_for_trades(10, &mut executions_buffer);        // Then
         assert!(orderbook.bids.is_empty());
         assert!(orderbook.asks.is_empty());
     }
@@ -268,7 +271,8 @@ mod tests {
         orderbook.apply_order(sell_order);
         orderbook.apply_order(latter_sell_order);
         // When
-        orderbook.check_for_trades();
+        let mut executions_buffer: [Execution; 10] = uninitialized_arr();
+        orderbook.check_for_trades(10, &mut executions_buffer);
         // Then
         assert!(orderbook.bids.is_empty());
         assert_eq!(*orderbook.asks.iter().next().unwrap(), latter_sell_order);
@@ -297,7 +301,8 @@ mod tests {
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
-        orderbook.check_for_trades();
+        let mut executions_buffer: [Execution; 10] = uninitialized_arr();
+        orderbook.check_for_trades(10, &mut executions_buffer);
         // Then
         assert!(orderbook.asks.is_empty());
         assert_eq!(orderbook.bids.pop().unwrap().qty, 4)
@@ -326,7 +331,8 @@ mod tests {
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
-        orderbook.check_for_trades();
+        let mut executions_buffer: [Execution; 10] = uninitialized_arr();
+        orderbook.check_for_trades(10, &mut executions_buffer);
         // Then
         assert!(orderbook.bids.is_empty());
         assert_eq!(orderbook.asks.pop().unwrap().qty, 6);
@@ -360,7 +366,9 @@ mod tests {
             id: 1,
         };
         orderbook.remove_order(cancel_order);
-        orderbook.check_for_trades();
+
+        let mut executions_buffer: [Execution; 10] = uninitialized_arr();
+        orderbook.check_for_trades(10, &mut executions_buffer);
         // Then
         assert_eq!(orderbook.bids.pop().unwrap().qty, 4);
         assert!(orderbook.asks.is_empty());
