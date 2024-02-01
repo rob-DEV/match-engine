@@ -1,12 +1,13 @@
 use std::env;
 use std::sync::{Arc, mpsc, Mutex};
 
-use common::message::MarketDataFullSnapshot;
+use common::domain::MarketDataFullSnapshot;
 
 use crate::domain::order::Order;
 
 mod engine;
 mod domain;
+mod memory;
 
 #[tokio::main]
 async fn main() {

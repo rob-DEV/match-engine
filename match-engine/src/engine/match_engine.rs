@@ -1,13 +1,13 @@
-use std::{
-    sync::{Arc, mpsc::Receiver, Mutex},
-    thread,
-    time::Instant,
-};
+use std::{mem, sync::{Arc, mpsc::Receiver, Mutex}, thread, time::Instant};
+use std::mem::MaybeUninit;
 
-use common::message::MarketDataFullSnapshot;
+use common::domain::MarketDataFullSnapshot;
 
+use crate::domain::execution::Execution;
 use crate::domain::order::Order;
 use crate::engine::book::Book;
+
+const MAX_EXECUTIONS_PER_CYCLE: usize = 10000;
 
 pub struct MatchEngine {
     book_mutex: Arc<Mutex<Book>>,
@@ -48,22 +48,23 @@ impl MatchEngine {
 
 
     fn matching_cycle(book_handle: Arc<Mutex<Book>>, md_mutex: Arc<Mutex<MarketDataFullSnapshot>>) -> ! {
+        let mut executions_buffer = {
+            let raw_buffer: [MaybeUninit<Execution>; MAX_EXECUTIONS_PER_CYCLE] = unsafe {
+                MaybeUninit::uninit().assume_init()
+            };
+            unsafe { mem::transmute::<_, [Execution; MAX_EXECUTIONS_PER_CYCLE]>(raw_buffer) }
+        };
+
+
         loop {
             let cycle_timer = Instant::now();
             let mut book = book_handle.lock().unwrap();
 
-            let matches = book.check_for_trades();
+            let executions = book.check_for_trades(MAX_EXECUTIONS_PER_CYCLE, &mut executions_buffer);
 
-            if matches > 0 {
-                println!("cycle ns: {} matches: {}", cycle_timer.elapsed().as_nanos(), matches);
-
-                let (bids, asks) = book.size();
-                println!("book bids: {} asks: {}", bids, asks);
-
-                let book_snapshot = book.create_book_snapshot();
-                let mut snapshot = md_mutex.lock().unwrap();
-                snapshot.asks = book_snapshot.asks;
-                snapshot.bids = book_snapshot.bids;
+            if executions > 0 {
+                println!("cycle ns: {} executions: {}", cycle_timer.elapsed().as_nanos(), executions);
+                book.populate_md_mutex(&md_mutex);
             }
         }
     }

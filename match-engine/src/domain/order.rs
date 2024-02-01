@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use common::message::{CancelOrder, OrderAction};
+use common::domain::{CancelOrder, OrderAction};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Order {

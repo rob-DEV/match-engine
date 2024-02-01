@@ -55,8 +55,8 @@ impl MarketDataFullSnapshot {
     pub fn new() -> MarketDataFullSnapshot {
         MarketDataFullSnapshot {
             snapshot_type: SnapshotType::FullSnapshot,
-            bids: vec![],
-            asks: vec![],
+            bids: Vec::with_capacity(100),
+            asks: Vec::with_capacity(100),
         }
     }
 }

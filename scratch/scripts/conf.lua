@@ -8,7 +8,7 @@ end
 
 request = function()
     wrk.method = "POST"
-    wrk.body = string.format("{\"NewOrder\":{\"action\":\"%s\",\"px\":%d,\"qty\":%d}}", randomised_side(), math.random(1, 1000), math.random(1, 100))
+    wrk.body = string.format("{\"NewOrder\":{\"action\":\"%s\",\"px\":%d,\"qty\":%d}}", randomised_side(), math.random(1, 100), math.random(1, 100))
     wrk.headers["Content-Type"] = "application/json"
     return wrk.format("POST")
 end

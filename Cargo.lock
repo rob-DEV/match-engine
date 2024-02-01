@@ -34,6 +34,7 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "common",
+ "lazy_static",
  "rand",
  "serde",
  "serde_json",
@@ -282,6 +283,7 @@ dependencies = [
  "rand",
  "serde_json",
  "tokio",
+ "uninit",
 ]
 
 [[package]]
@@ -1356,10 +1358,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ed646292ffc8188ef8ea4d1e0e0150fb15a5c2e12ad9b8fc191ae7a8a7f3c4b9"
 
 [[package]]
+name = "ui"
+version = "0.1.0"
+
+[[package]]
 name = "unicode-ident"
 version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3354b9ac3fae1ff6755cb6db53683adb661634f67557942dea4facebec0fee4b"
+
+[[package]]
+name = "uninit"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "359fdaaabedff944f100847f2e0ea88918d8012fe64baf5b54c191ad010168c9"
 
 [[package]]
 name = "vcpkg"

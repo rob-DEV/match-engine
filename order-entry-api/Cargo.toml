@@ -13,3 +13,4 @@ skytable = "0.8.5"
 serde = { version = "1.0.195", features = ["derive"] }
 rand = "0.8.5"
 common = { version = "0.1.0", path = "../common" }
+lazy_static = "1.4.0"

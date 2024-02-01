@@ -8,10 +8,10 @@ use rand::random;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-use common::message::{CancelOrder, CancelOrderAck, GatewayMessage, MarketDataFullSnapshot, MarketDataRequest, MarketDataTopOfBookSnapshot, NewOrder, NewOrderAck, SnapshotType};
-use common::message::EngineError::GeneralError;
-use common::message::GatewayMessage::MarketDataResponse;
-use common::message::MarketDataResponse::{FullSnapshot, TopOfBook};
+use common::domain::{CancelOrder, CancelOrderAck, GatewayMessage, MarketDataFullSnapshot, MarketDataRequest, MarketDataTopOfBookSnapshot, NewOrder, NewOrderAck, SnapshotType};
+use common::domain::EngineError::GeneralError;
+use common::domain::GatewayMessage::MarketDataResponse;
+use common::domain::MarketDataResponse::{FullSnapshot, TopOfBook};
 
 use crate::domain::order::{LimitOrder, Order};
 

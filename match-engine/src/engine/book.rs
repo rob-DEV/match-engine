@@ -1,14 +1,14 @@
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fmt::{Debug, Formatter};
+use std::sync::{Arc, Mutex};
+use std::time::{SystemTime, UNIX_EPOCH};
 
-use itertools::Itertools;
+use common::domain::{CancelOrder, MarketDataEntry, MarketDataFullSnapshot};
+use common::domain::OrderAction;
 
-use common::message::{CancelOrder, MarketDataEntry, MarketDataFullSnapshot, SnapshotType};
-use common::message::OrderAction;
-
+use crate::domain::execution::Execution;
 use crate::domain::order::LimitOrder;
-use crate::domain::trade::Trade;
 
 pub struct Book {
     asks: BinaryHeap<LimitOrder>,
@@ -18,8 +18,8 @@ pub struct Book {
 impl Book {
     pub fn new() -> Book {
         Book {
-            bids: BinaryHeap::with_capacity(1_000_000),
-            asks: BinaryHeap::with_capacity(1_000_000),
+            bids: BinaryHeap::with_capacity(500_000),
+            asks: BinaryHeap::with_capacity(500_000),
         }
     }
 
@@ -37,68 +37,63 @@ impl Book {
         };
     }
 
-    pub fn create_book_snapshot(&mut self) -> MarketDataFullSnapshot {
-        const MAX_SNAPSHOT_SIZE: usize = 10;
+    pub fn populate_md_mutex(&mut self, md_mutex: &Arc<Mutex<MarketDataFullSnapshot>>) {
+        const MAX_SNAPSHOT_SIZE: usize = 20;
 
-        let mut bids_snapshot: [MarketDataEntry; MAX_SNAPSHOT_SIZE] = [MarketDataEntry { px: 0, qty: 0 }; MAX_SNAPSHOT_SIZE];
-        let mut asks_snapshot: [MarketDataEntry; MAX_SNAPSHOT_SIZE] = [MarketDataEntry { px: 0, qty: 0 }; MAX_SNAPSHOT_SIZE];
+        let mut asks_md = self.asks.clone();
+        let mut bids_md = self.bids.clone();
 
-        let mut bids = self.bids.clone();
-        let mut asks = self.asks.clone();
+        let mut md_asks: usize = 0;
+        let mut md_bids: usize = 0;
 
-        for i in 0..MAX_SNAPSHOT_SIZE {
-            if let Some(bid) = bids.pop() {
-                bids_snapshot[i] = MarketDataEntry { px: bid.px, qty: bid.qty };
+        let mut snapshot = md_mutex.lock().unwrap();
+
+        while md_asks < MAX_SNAPSHOT_SIZE || md_bids < MAX_SNAPSHOT_SIZE {
+            let ask = asks_md.pop();
+            let bid = bids_md.pop();
+
+            if let Some(ask) = ask {
+                snapshot.asks.push(MarketDataEntry {
+                    px: ask.px,
+                    qty: ask.qty,
+                });
+
+                md_asks += 1;
+            } else {
+                break;
             }
 
-            if let Some(ask) = asks.pop() {
-                asks_snapshot[i] = MarketDataEntry { px: ask.px, qty: ask.qty };
+            if let Some(bid) = bid {
+                snapshot.bids.push(MarketDataEntry {
+                    px: bid.px,
+                    qty: bid.qty,
+                });
+
+                md_bids += 1;
+            } else {
+                break;
             }
         }
-
-        return MarketDataFullSnapshot {
-            snapshot_type: SnapshotType::FullSnapshot,
-            bids: bids_snapshot.iter()
-                .take_while(|md_entry| md_entry.px > 0)
-                .group_by(|order| order.px)
-                .into_iter()
-                .map(|(px, records)| {
-                    let agg_qty = records.into_iter().fold(0, |mut aggregated_qty, nxt| {
-                        aggregated_qty += nxt.px;
-                        aggregated_qty
-                    });
-
-                    MarketDataEntry { px, qty: agg_qty }
-                })
-                .collect(),
-            asks: asks_snapshot.iter()
-                .rev()
-                .take_while(|md_entry| md_entry.px > 0)
-                .group_by(|order| order.px)
-                .into_iter()
-                .map(|(px, records)| {
-                    let agg_qty = records.into_iter().fold(0, |mut aggregated_qty, nxt| {
-                        aggregated_qty += nxt.px;
-                        aggregated_qty
-                    });
-
-                    MarketDataEntry { px, qty: agg_qty }
-                })
-                .collect(),
-        };
     }
 
-    pub fn check_for_trades(&mut self) -> u32 {
-        let mut executions: u32 = 0;
+    pub fn check_for_trades(&mut self, max_execution_per_cycle: usize, arr: &mut [Execution]) -> usize {
+        let mut executions: usize = 0;
         while let (Some(ask), Some(bid)) = (self.asks.peek(), self.bids.peek()) {
+            if executions == max_execution_per_cycle {
+                break;
+            }
+
             match self.attempt_order_match(ask, bid) {
                 None => break,
-                Some((_, remainder)) => {
-                    executions += 1;
+                Some((execution, remainder)) => {
                     if let Some(rem) = remainder {
                         self.apply_order(rem);
                     }
-                    // Matched orders ejected from book
+
+                    arr[executions] = execution;
+
+                    executions += 1;
+
                     self.asks.pop();
                     self.bids.pop();
                 }
@@ -108,11 +103,7 @@ impl Book {
         return executions;
     }
 
-    pub fn size(&self) -> (usize, usize) {
-        (self.bids.len(), self.asks.len())
-    }
-
-    fn attempt_order_match(&self, ask: &LimitOrder, bid: &LimitOrder) -> Option<(Trade, Option<LimitOrder>)> {
+    fn attempt_order_match(&self, ask: &LimitOrder, bid: &LimitOrder) -> Option<(Execution, Option<LimitOrder>)> {
         let (ask, bid) = match (ask.side, bid.side) {
             (OrderAction::BUY, OrderAction::SELL) => (bid, ask),
             (OrderAction::SELL, OrderAction::BUY) => (ask, bid),
@@ -127,10 +118,11 @@ impl Book {
             Ordering::Equal => {
                 let quantity = ask.qty;
                 Some((
-                    Trade {
-                        filled_quantity: quantity,
+                    Execution {
+                        fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
+                        execution_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
                     },
                     None,
                 ))
@@ -140,10 +132,11 @@ impl Book {
                 let mut remainder = ask.clone();
                 remainder.qty -= quantity;
                 Some((
-                    Trade {
-                        filled_quantity: quantity,
+                    Execution {
+                        fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
+                        execution_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
                     },
                     Some(remainder),
                 ))
@@ -153,10 +146,11 @@ impl Book {
                 let mut remainder = bid.clone();
                 remainder.qty -= quantity;
                 Some((
-                    Trade {
-                        filled_quantity: quantity,
+                    Execution {
+                        fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
+                        execution_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
                     },
                     Some(remainder),
                 ))
