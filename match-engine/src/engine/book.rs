@@ -4,11 +4,13 @@ use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use common::domain::{CancelOrder, MarketDataEntry, MarketDataFullSnapshot};
-use common::domain::OrderAction;
+use rand::random;
+
+use common::message::{MarketDataEntry, MarketDataFullSnapshot};
+use common::message::OrderAction;
 
 use crate::domain::execution::Execution;
-use crate::domain::order::LimitOrder;
+use crate::domain::order::{CancelOrder, LimitOrder};
 
 pub struct Book {
     asks: BinaryHeap<LimitOrder>,
@@ -47,6 +49,8 @@ impl Book {
         let mut md_bids: usize = 0;
 
         let mut snapshot = md_mutex.lock().unwrap();
+        snapshot.asks.clear();
+        snapshot.bids.clear();
 
         while md_asks < MAX_SNAPSHOT_SIZE || md_bids < MAX_SNAPSHOT_SIZE {
             let ask = asks_md.pop();
@@ -119,6 +123,7 @@ impl Book {
                 let quantity = ask.qty;
                 Some((
                     Execution {
+                        id: random::<u32>(),
                         fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
@@ -133,6 +138,7 @@ impl Book {
                 remainder.qty -= quantity;
                 Some((
                     Execution {
+                        id: random::<u32>(),
                         fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
@@ -147,6 +153,7 @@ impl Book {
                 remainder.qty -= quantity;
                 Some((
                     Execution {
+                        id: random::<u32>(),
                         fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),

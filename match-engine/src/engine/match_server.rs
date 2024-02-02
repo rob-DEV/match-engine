@@ -8,10 +8,10 @@ use rand::random;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-use common::domain::{CancelOrder, CancelOrderAck, GatewayMessage, MarketDataFullSnapshot, MarketDataRequest, MarketDataTopOfBookSnapshot, NewOrder, NewOrderAck, SnapshotType};
-use common::domain::EngineError::GeneralError;
-use common::domain::GatewayMessage::MarketDataResponse;
-use common::domain::MarketDataResponse::{FullSnapshot, TopOfBook};
+use common::message::{CancelOrder, CancelOrderAck, GatewayMessage, MarketDataFullSnapshot, MarketDataRequest, MarketDataTopOfBookSnapshot, NewOrder, NewOrderAck, SnapshotType};
+use common::message::EngineError::GeneralError;
+use common::message::GatewayMessage::MarketDataResponse;
+use common::message::MarketDataResponse::{FullSnapshot, TopOfBook};
 
 use crate::domain::order::{LimitOrder, Order};
 
@@ -49,7 +49,7 @@ impl MatchServer {
 
     async fn handler(mut socket: TcpStream, new_order_tx: Sender<Order>, market_data_rx_mutex: Arc<Mutex<MarketDataFullSnapshot>>) {
         let (mut socket_rx, mut socket_tx) = socket.split();
-        let mut socket_rx_buffer: [u8; 512] = [0; 512];
+        let mut socket_rx_buffer: [u8; 4096] = [0; 4096];
 
         match socket_rx.read(&mut socket_rx_buffer).await {
             Ok(socket_rx_bytes_read) => {
@@ -91,8 +91,8 @@ impl MatchServer {
         order_tx.send(Order::New(limit_order)).unwrap();
 
         return GatewayMessage::NewOrderAck(NewOrderAck {
-            action: new_order.action,
             id: limit_order.id,
+            action: new_order.action,
             px: new_order.px,
             qty: new_order.qty,
             ack_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
@@ -100,9 +100,9 @@ impl MatchServer {
     }
 
     async fn handle_cancel_order(order_tx: Sender<Order>, cancel_order: CancelOrder) -> GatewayMessage {
-        let cancel = CancelOrder {
-            action: cancel_order.action,
+        let cancel = crate::domain::order::CancelOrder {
             id: cancel_order.id,
+            action: cancel_order.action,
         };
 
         order_tx.send(Order::Cancel(cancel)).unwrap();

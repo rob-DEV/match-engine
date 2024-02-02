@@ -9,7 +9,7 @@ use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use common::domain::GatewayMessage;
+use common::message::GatewayMessage;
 
 lazy_static! {
     pub static ref ENGINE_PORT: u16 = env::var("ENGINE_PORT").unwrap_or("3000".to_owned()).parse::<u16>().unwrap();
@@ -19,7 +19,6 @@ lazy_static! {
 #[tokio::main]
 async fn main() {
     let app = axum::Router::new()
-        .route("/", get(health_handler))
         .route("/order", post(connection_handler))
         .route("/md", post(connection_handler));
 
@@ -33,13 +32,6 @@ async fn main() {
         .unwrap();
 }
 
-async fn health_handler() -> impl IntoResponse {
-    Json(json!({
-        "status": "ok",
-        "message": "Order Entry API"
-    }))
-}
-
 async fn connection_handler(Json(payload): Json<GatewayMessage>) -> impl IntoResponse {
     let mut engine_socket = TcpStream::connect(SocketAddr::from(([0, 0, 0, 0], *ENGINE_PORT))).await.unwrap();
 
@@ -48,7 +40,7 @@ async fn connection_handler(Json(payload): Json<GatewayMessage>) -> impl IntoRes
         Err(err) => panic!("Error {}", err)
     };
 
-    let mut ack_buffer: [u8; 512] = [0; 512];
+    let mut ack_buffer: [u8; 64096] = [0; 64096];
 
     match engine_socket.read(&mut ack_buffer).await {
         Ok(bytes) => {

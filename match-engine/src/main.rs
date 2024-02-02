@@ -1,7 +1,7 @@
 use std::env;
 use std::sync::{Arc, mpsc, Mutex};
 
-use common::domain::MarketDataFullSnapshot;
+use common::message::MarketDataFullSnapshot;
 
 use crate::domain::order::Order;
 

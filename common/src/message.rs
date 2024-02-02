@@ -82,18 +82,18 @@ pub struct NewOrder {
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CancelOrder {
+    pub action: OrderAction,
+    pub id: u32
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NewOrderAck {
     pub action: OrderAction,
     pub id: u32,
     pub px: u32,
     pub qty: u32,
     pub ack_time: u128,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CancelOrder {
-    pub action: OrderAction,
-    pub id: u32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

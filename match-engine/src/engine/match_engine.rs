@@ -1,6 +1,6 @@
 use std::{sync::{Arc, mpsc::Receiver, Mutex}, thread, time::Instant};
 
-use common::domain::MarketDataFullSnapshot;
+use common::message::MarketDataFullSnapshot;
 
 use crate::domain::execution::Execution;
 use crate::domain::order::Order;

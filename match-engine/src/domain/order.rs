@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use common::domain::{CancelOrder, OrderAction};
+use common::message::{OrderAction};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Order {
@@ -16,6 +16,13 @@ pub struct LimitOrder {
     pub side: OrderAction,
     pub placed_time: u128,
 }
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct CancelOrder {
+    pub action: OrderAction,
+    pub id: u32,
+}
+
 
 impl LimitOrder {
     fn partial_cmp_buy(&self, other: &Self) -> Option<Ordering> {
