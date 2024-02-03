@@ -22,9 +22,28 @@ pub struct PartialMatch {
     pub execution_time: u128,
 }
 
-impl Debug for Execution {
+
+impl Debug for FullMatch {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "-----------------------------------Execution-----------------------------------").unwrap();
+        writeln!(f, "-----------------------------------Full Exec.-----------------------------------").unwrap();
+        writeln!(
+            f,
+            "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
+            "Ask id", "Bid", "Px", "Ex Time"
+        ).unwrap();
+        writeln!(
+            f,
+            "{0: <10} | {1: <10} | {2: <10} | {3: <10}",
+            self.ask.id, self.bid.id, self.ask.px, self.execution_time
+        ).unwrap();
+        writeln!(f, "--------------------------------------------------------------------------------").unwrap();
+        Ok(())
+    }
+}
+
+impl Debug for PartialMatch {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "-----------------------------------Partial Exec.-----------------------------------").unwrap();
         writeln!(
             f,
             "{0: <8} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
@@ -35,7 +54,7 @@ impl Debug for Execution {
             "{0: <8} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
             self.fill_qty, self.ask.id, self.bid.id, self.ask.px, self.execution_time
         ).unwrap();
-        writeln!(f, "-----------------------------------Execution-----------------------------------").unwrap();
+        writeln!(f, "-----------------------------------------------------------------------------------").unwrap();
         Ok(())
     }
 }
