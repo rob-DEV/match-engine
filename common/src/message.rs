@@ -13,10 +13,7 @@ pub enum GatewayMessage {
     CancelOrder(CancelOrder),
     CancelOrderAck(CancelOrderAck),
 
-    // Match
-    OrderFullyMatched(NewOrderAck),
-    OrderPartiallyMatched(OrderPartiallyMatched),
-
+    // Error
     EngineError(EngineError),
 }
 
@@ -84,7 +81,7 @@ pub struct NewOrder {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CancelOrder {
     pub action: OrderAction,
-    pub id: u32
+    pub id: u32,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -99,25 +96,6 @@ pub struct NewOrderAck {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CancelOrderAck {
     pub ack_time: u128,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OrderFullyMatched {
-    pub id: u32,
-    pub order_id: u32,
-    pub px: u32,
-    pub qty: u32,
-    pub execution_time: u128,
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct OrderPartiallyMatched {
-    pub id: u32,
-    pub order_id: u32,
-    pub px: u32,
-    pub qty: u32,
-    pub qty_remaining: u32,
-    pub execution_time: u128,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

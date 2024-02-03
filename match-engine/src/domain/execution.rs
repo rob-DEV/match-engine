@@ -2,7 +2,19 @@ use std::fmt::{Debug, Formatter};
 
 use crate::domain::order::LimitOrder;
 
-pub struct Execution {
+pub enum Execution {
+    FullMatch(FullMatch),
+    PartialMatch(PartialMatch),
+}
+
+pub struct FullMatch {
+    pub id: u32,
+    pub ask: LimitOrder,
+    pub bid: LimitOrder,
+    pub execution_time: u128,
+}
+
+pub struct PartialMatch {
     pub id: u32,
     pub fill_qty: u32,
     pub ask: LimitOrder,

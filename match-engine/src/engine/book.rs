@@ -9,7 +9,7 @@ use rand::random;
 use common::message::{MarketDataEntry, MarketDataFullSnapshot};
 use common::message::OrderAction;
 
-use crate::domain::execution::Execution;
+use crate::domain::execution::{Execution, FullMatch, PartialMatch};
 use crate::domain::order::{CancelOrder, LimitOrder};
 
 pub struct Book {
@@ -122,13 +122,12 @@ impl Book {
             Ordering::Equal => {
                 let quantity = ask.qty;
                 Some((
-                    Execution {
+                    Execution::FullMatch(FullMatch {
                         id: random::<u32>(),
-                        fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
                         execution_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
-                    },
+                    }),
                     None,
                 ))
             }
@@ -136,14 +135,15 @@ impl Book {
                 let quantity = bid.qty;
                 let mut remainder = ask.clone();
                 remainder.qty -= quantity;
+
                 Some((
-                    Execution {
+                    Execution::PartialMatch(PartialMatch {
                         id: random::<u32>(),
                         fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
                         execution_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
-                    },
+                    }),
                     Some(remainder),
                 ))
             }
@@ -152,13 +152,13 @@ impl Book {
                 let mut remainder = bid.clone();
                 remainder.qty -= quantity;
                 Some((
-                    Execution {
+                    Execution::PartialMatch(PartialMatch {
                         id: random::<u32>(),
                         fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
                         execution_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
-                    },
+                    }),
                     Some(remainder),
                 ))
             }
