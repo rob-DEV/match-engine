@@ -15,10 +15,10 @@ async fn main() {
     let (order_entry_tx, order_entry_rx): (mpsc::Sender<Order>, mpsc::Receiver<Order>) = mpsc::channel();
     let market_data_snapshot_mutex = Arc::new(Mutex::new(MarketDataFullSnapshot::new()));
 
-    // Engine started on separate non-tokio thread
+    // Engine started on separate non-tokio threads
     let md_mutex = market_data_snapshot_mutex.clone();
-    let match_engine = engine::match_engine::MatchEngine::new(order_entry_rx, md_mutex);
-    match_engine.run();
+    let match_engine = engine::match_engine::MatchEngine::new(md_mutex);
+    match_engine.run(order_entry_rx);
 
     // Order entry tokio rt
     let app_port = env::var("APP_PORT").unwrap_or("3000".to_string());

@@ -25,7 +25,7 @@ impl MatchServer {
     pub async fn new(app_port: String, order_entry_tx: Sender<Order>, market_data_rx: Arc<Mutex<MarketDataFullSnapshot>>) -> MatchServer {
         println!("Starting Match Server on port {}", app_port);
 
-        let socket_addr = SocketAddr::new("127.0.0.1".parse().unwrap(), app_port.parse().unwrap());
+        let socket_addr = SocketAddr::from(([0, 0, 0, 0], app_port.parse().unwrap()));
         MatchServer {
             match_server_listener: TcpListener::bind(socket_addr).await.unwrap(),
             order_entry_tx_mutex: Arc::new(Mutex::new(order_entry_tx)),
@@ -82,9 +82,9 @@ impl MatchServer {
     async fn handle_new_order(order_tx: Sender<Order>, new_order: NewOrder) -> GatewayMessage {
         let limit_order = LimitOrder {
             id: random::<u32>(),
+            action: new_order.action,
             px: new_order.px,
             qty: new_order.qty,
-            side: new_order.action,
             placed_time: 0,
         };
 

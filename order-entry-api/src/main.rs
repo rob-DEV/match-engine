@@ -3,7 +3,7 @@ use std::net::SocketAddr;
 
 use axum::Json;
 use axum::response::IntoResponse;
-use axum::routing::{get, post};
+use axum::routing::post;
 use lazy_static::lazy_static;
 use serde_json::json;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -40,7 +40,7 @@ async fn connection_handler(Json(payload): Json<GatewayMessage>) -> impl IntoRes
         Err(err) => panic!("Error {}", err)
     };
 
-    let mut ack_buffer: [u8; 64096] = [0; 64096];
+    let mut ack_buffer: [u8; 4096] = [0; 4096];
 
     match engine_socket.read(&mut ack_buffer).await {
         Ok(bytes) => {

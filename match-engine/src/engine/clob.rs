@@ -12,21 +12,23 @@ use common::message::OrderAction;
 use crate::domain::execution::{Execution, FullMatch, PartialMatch};
 use crate::domain::order::{CancelOrder, LimitOrder};
 
-pub struct Book {
+pub struct CentralLimitOrderBook {
     asks: BinaryHeap<LimitOrder>,
     bids: BinaryHeap<LimitOrder>,
+    md_mutex: Arc<Mutex<MarketDataFullSnapshot>>,
 }
 
-impl Book {
-    pub fn new() -> Book {
-        Book {
+impl CentralLimitOrderBook {
+    pub fn new(md_mutex: Arc<Mutex<MarketDataFullSnapshot>>) -> CentralLimitOrderBook {
+        CentralLimitOrderBook {
             bids: BinaryHeap::with_capacity(500_000),
             asks: BinaryHeap::with_capacity(500_000),
+            md_mutex,
         }
     }
 
     pub fn apply_order(&mut self, order: LimitOrder) {
-        match order.side {
+        match order.action {
             OrderAction::BUY => self.bids.push(order),
             OrderAction::SELL => self.asks.push(order),
         };
@@ -39,7 +41,7 @@ impl Book {
         };
     }
 
-    pub fn populate_md_mutex(&mut self, md_mutex: &Arc<Mutex<MarketDataFullSnapshot>>) {
+    pub fn populate_md_mutex(&mut self) {
         const MAX_SNAPSHOT_SIZE: usize = 20;
 
         let mut asks_md = self.asks.clone();
@@ -48,7 +50,7 @@ impl Book {
         let mut md_asks: usize = 0;
         let mut md_bids: usize = 0;
 
-        let mut snapshot = md_mutex.lock().unwrap();
+        let mut snapshot = self.md_mutex.lock().unwrap();
         snapshot.asks.clear();
         snapshot.bids.clear();
 
@@ -108,7 +110,7 @@ impl Book {
     }
 
     fn attempt_order_match(&self, ask: &LimitOrder, bid: &LimitOrder) -> Option<(Execution, Option<LimitOrder>)> {
-        let (ask, bid) = match (ask.side, bid.side) {
+        let (ask, bid) = match (ask.action, bid.action) {
             (OrderAction::BUY, OrderAction::SELL) => (bid, ask),
             (OrderAction::SELL, OrderAction::BUY) => (ask, bid),
             (_, _) => return None,
@@ -120,7 +122,6 @@ impl Book {
 
         match ask.qty.cmp(&bid.qty) {
             Ordering::Equal => {
-                let quantity = ask.qty;
                 Some((
                     Execution::FullMatch(FullMatch {
                         id: random::<u32>(),
@@ -166,7 +167,7 @@ impl Book {
     }
 }
 
-impl Debug for Book {
+impl Debug for CentralLimitOrderBook {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-------------------Order Book-------------------").unwrap();
         writeln!(
@@ -221,21 +222,21 @@ mod tests {
         // Given
         let buy_order = LimitOrder {
             id: 1,
+            action: OrderAction::BUY,
             px: 1,
             qty: 10,
-            side: OrderAction::BUY,
             placed_time: 0,
         };
 
         let sell_order = LimitOrder {
             id: 1,
+            action: OrderAction::SELL,
             px: 1,
             qty: 10,
-            side: OrderAction::SELL,
             placed_time: 0,
         };
 
-        let mut orderbook = Book::new();
+        let mut orderbook = CentralLimitOrderBook::new(Arc::new(Mutex::new(MarketDataFullSnapshot::new())));
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
@@ -251,29 +252,29 @@ mod tests {
         // Given
         let buy_order = LimitOrder {
             id: 1,
+            action: OrderAction::BUY,
             px: 1,
             qty: 10,
-            side: OrderAction::BUY,
             placed_time: 0,
         };
 
         let sell_order = LimitOrder {
             id: 2,
+            action: OrderAction::SELL,
             px: 1,
             qty: 10,
-            side: OrderAction::SELL,
             placed_time: 0,
         };
 
         let latter_sell_order = LimitOrder {
             id: 3,
+            action: OrderAction::SELL,
             px: 1,
             qty: 10,
-            side: OrderAction::SELL,
             placed_time: 0,
         };
 
-        let mut orderbook = Book::new();
+        let mut orderbook = CentralLimitOrderBook::new(Arc::new(Mutex::new(MarketDataFullSnapshot::new())));
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         orderbook.apply_order(latter_sell_order);
@@ -290,21 +291,21 @@ mod tests {
         // Given
         let buy_order = LimitOrder {
             id: 1,
+            action: OrderAction::BUY,
             px: 1,
             qty: 10,
-            side: OrderAction::BUY,
             placed_time: 0,
         };
 
         let sell_order = LimitOrder {
             id: 1,
+            action: OrderAction::SELL,
             px: 1,
             qty: 6,
-            side: OrderAction::SELL,
             placed_time: 0,
         };
 
-        let mut orderbook = Book::new();
+        let mut orderbook = CentralLimitOrderBook::new(Arc::new(Mutex::new(MarketDataFullSnapshot::new())));
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
@@ -320,21 +321,21 @@ mod tests {
         // Given
         let buy_order = LimitOrder {
             id: 1,
+            action: OrderAction::BUY,
             px: 1,
             qty: 4,
-            side: OrderAction::BUY,
             placed_time: 0,
         };
 
         let sell_order = LimitOrder {
             id: 1,
+            action: OrderAction::SELL,
             px: 1,
             qty: 10,
-            side: OrderAction::SELL,
             placed_time: 0,
         };
 
-        let mut orderbook = Book::new();
+        let mut orderbook = CentralLimitOrderBook::new(Arc::new(Mutex::new(MarketDataFullSnapshot::new())));
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
@@ -350,27 +351,27 @@ mod tests {
         // Given
         let buy_order = LimitOrder {
             id: 1,
+            action: OrderAction::BUY,
             px: 1,
             qty: 4,
-            side: OrderAction::BUY,
             placed_time: 0,
         };
 
         let sell_order = LimitOrder {
             id: 1,
+            action: OrderAction::SELL,
             px: 1,
             qty: 10,
-            side: OrderAction::SELL,
             placed_time: 0,
         };
 
-        let mut orderbook = Book::new();
+        let mut orderbook = CentralLimitOrderBook::new(Arc::new(Mutex::new(MarketDataFullSnapshot::new())));
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
         let cancel_order = CancelOrder {
-            action: OrderAction::SELL,
             id: 1,
+            action: OrderAction::SELL,
         };
         orderbook.remove_order(cancel_order);
 

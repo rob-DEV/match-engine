@@ -22,7 +22,6 @@ pub struct PartialMatch {
     pub execution_time: u128,
 }
 
-
 impl Debug for FullMatch {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-----------------------------------Full Exec.-----------------------------------").unwrap();
