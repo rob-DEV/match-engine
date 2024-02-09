@@ -1,1 +1,2 @@
 https://arxiv.org/pdf/2102.10925.pdf
+https://medium.com/nlnetlabs/adapting-radix-trees-15fe7d27c894

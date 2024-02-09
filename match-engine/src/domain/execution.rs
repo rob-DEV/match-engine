@@ -11,7 +11,7 @@ pub struct FullMatch {
     pub id: u32,
     pub ask: LimitOrder,
     pub bid: LimitOrder,
-    pub execution_time: u128,
+    pub execution_time: u64,
 }
 
 pub struct PartialMatch {
@@ -19,7 +19,7 @@ pub struct PartialMatch {
     pub fill_qty: u32,
     pub ask: LimitOrder,
     pub bid: LimitOrder,
-    pub execution_time: u128,
+    pub execution_time: u64,
 }
 
 impl Debug for FullMatch {

@@ -2,7 +2,6 @@ use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 use std::sync::mpsc::Sender;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use rand::random;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -14,6 +13,7 @@ use common::message::GatewayMessage::MarketDataResponse;
 use common::message::MarketDataResponse::{FullSnapshot, TopOfBook};
 
 use crate::domain::order::{LimitOrder, Order};
+use crate::util::time::epoch_nanos;
 
 pub struct MatchServer {
     match_server_listener: TcpListener,
@@ -95,7 +95,7 @@ impl MatchServer {
             action: new_order.action,
             px: new_order.px,
             qty: new_order.qty,
-            ack_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
+            ack_time: epoch_nanos(),
         });
     }
 
@@ -108,7 +108,7 @@ impl MatchServer {
         order_tx.send(Order::Cancel(cancel)).unwrap();
 
         return GatewayMessage::CancelOrderAck(CancelOrderAck {
-            ack_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
+            ack_time: epoch_nanos(),
         });
     }
 

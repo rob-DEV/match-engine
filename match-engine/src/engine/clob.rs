@@ -1,8 +1,7 @@
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, BTreeMap};
 use std::fmt::{Debug, Formatter};
 use std::sync::{Arc, Mutex};
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use rand::random;
 
@@ -11,10 +10,15 @@ use common::message::OrderAction;
 
 use crate::domain::execution::{Execution, FullMatch, PartialMatch};
 use crate::domain::order::{CancelOrder, LimitOrder};
+use crate::util::time::epoch_nanos;
 
 pub struct CentralLimitOrderBook {
     asks: BinaryHeap<LimitOrder>,
     bids: BinaryHeap<LimitOrder>,
+
+    asks_limits: BTreeMap<u32, u32>,
+    bids_limits: BTreeMap<u32, u32>,
+
     md_mutex: Arc<Mutex<MarketDataFullSnapshot>>,
 }
 
@@ -23,63 +27,83 @@ impl CentralLimitOrderBook {
         CentralLimitOrderBook {
             bids: BinaryHeap::with_capacity(500_000),
             asks: BinaryHeap::with_capacity(500_000),
+            bids_limits: BTreeMap::new(),
+            asks_limits: BTreeMap::new(),
             md_mutex,
         }
     }
 
     pub fn apply_order(&mut self, order: LimitOrder) {
         match order.action {
-            OrderAction::BUY => self.bids.push(order),
-            OrderAction::SELL => self.asks.push(order),
+            OrderAction::BUY => {
+                self.bids.push(order);
+                let a = self.bids_limits.entry(order.px).or_insert(0);
+                *a += order.qty;
+            }
+            OrderAction::SELL => {
+                self.asks.push(order);
+                let a = self.asks_limits.entry(order.px).or_insert(0);
+                *a += order.qty;
+            }
         };
     }
 
     pub fn remove_order(&mut self, order: CancelOrder) {
         match order.action {
-            OrderAction::BUY => self.bids.retain(|x| x.id != order.id),
-            OrderAction::SELL => self.asks.retain(|x| x.id != order.id),
+            OrderAction::BUY => {
+                let mut px = 0;
+                let mut qty = 0;
+                for it in self.bids.iter() {
+                    if it.id == order.id {
+                        px = it.px;
+                        qty = it.qty;
+                        break;
+                    }
+                }
+
+                self.bids.retain(|x| x.id != order.id);
+                *self.bids_limits.get_mut(&px).unwrap() -= qty
+            }
+            OrderAction::SELL => {
+                let mut px = 0;
+                let mut qty = 0;
+                for it in self.asks.iter() {
+                    if it.id == order.id {
+                        px = it.px;
+                        qty = it.qty;
+                        break;
+                    }
+                }
+                self.asks.retain(|x| x.id != order.id);
+                *self.asks_limits.get_mut(&px).unwrap() -= qty
+            }
         };
     }
 
     pub fn populate_md_mutex(&mut self) {
-        const MAX_SNAPSHOT_SIZE: usize = 20;
-
-        let mut asks_md = self.asks.clone();
-        let mut bids_md = self.bids.clone();
-
-        let mut md_asks: usize = 0;
-        let mut md_bids: usize = 0;
+        const MAX_SNAPSHOT_SIZE: usize = 5;
 
         let mut snapshot = self.md_mutex.lock().unwrap();
         snapshot.asks.clear();
         snapshot.bids.clear();
 
-        while md_asks < MAX_SNAPSHOT_SIZE || md_bids < MAX_SNAPSHOT_SIZE {
-            let ask = asks_md.pop();
-            let bid = bids_md.pop();
-
-            if let Some(ask) = ask {
+        self.asks_limits.iter()
+            .take(MAX_SNAPSHOT_SIZE)
+            .for_each(|(&px, &qty)| {
                 snapshot.asks.push(MarketDataEntry {
-                    px: ask.px,
-                    qty: ask.qty,
-                });
+                    px,
+                    qty,
+                })
+            });
 
-                md_asks += 1;
-            } else {
-                break;
-            }
-
-            if let Some(bid) = bid {
+        self.bids_limits.iter()
+            .take(MAX_SNAPSHOT_SIZE)
+            .for_each(|(&px, &qty)| {
                 snapshot.bids.push(MarketDataEntry {
-                    px: bid.px,
-                    qty: bid.qty,
-                });
-
-                md_bids += 1;
-            } else {
-                break;
-            }
-        }
+                    px,
+                    qty,
+                })
+            });
     }
 
     pub fn check_for_trades(&mut self, max_execution_per_cycle: usize, arr: &mut [Execution]) -> usize {
@@ -92,16 +116,32 @@ impl CentralLimitOrderBook {
             match self.attempt_order_match(ask, bid) {
                 None => break,
                 Some((execution, remainder)) => {
+                    // remove the match (any remainder is re-added
+                    self.asks.pop();
+                    self.bids.pop();
+
+                    // update MD limit record based on execution data
+                    match &execution {
+                        Execution::FullMatch(full_fill) => {
+                            *self.asks_limits.get_mut(&full_fill.ask.px).unwrap() -= &full_fill.ask.qty;
+                            *self.bids_limits.get_mut(&full_fill.bid.px).unwrap() -= &full_fill.bid.qty;
+                        }
+                        Execution::PartialMatch(partial_fill) => {
+                            let aaa = self.asks_limits.get(&partial_fill.ask.px).unwrap();
+
+                            *self.asks_limits.get_mut(&partial_fill.ask.px).unwrap() -= &partial_fill.fill_qty;
+                            *self.bids_limits.get_mut(&partial_fill.bid.px).unwrap() -= &partial_fill.fill_qty;
+                        }
+                    }
+
+                    // move the execution to the outbound buffer
+                    executions += 1;
+                    arr[executions] = execution;
+
+                    // add any remaining qty to the book
                     if let Some(rem) = remainder {
                         self.apply_order(rem);
                     }
-
-                    arr[executions] = execution;
-
-                    executions += 1;
-
-                    self.asks.pop();
-                    self.bids.pop();
                 }
             }
         }
@@ -127,7 +167,7 @@ impl CentralLimitOrderBook {
                         id: random::<u32>(),
                         ask: ask.clone(),
                         bid: bid.clone(),
-                        execution_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
+                        execution_time: epoch_nanos(),
                     }),
                     None,
                 ))
@@ -143,7 +183,7 @@ impl CentralLimitOrderBook {
                         fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
-                        execution_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
+                        execution_time: epoch_nanos(),
                     }),
                     Some(remainder),
                 ))
@@ -158,7 +198,7 @@ impl CentralLimitOrderBook {
                         fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
-                        execution_time: SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos(),
+                        execution_time: epoch_nanos(),
                     }),
                     Some(remainder),
                 ))
@@ -213,7 +253,7 @@ impl Debug for CentralLimitOrderBook {
 
 #[cfg(test)]
 mod tests {
-    use crate::memory::util::uninitialized_arr;
+    use crate::util::memory::uninitialized_arr;
 
     use super::*;
 

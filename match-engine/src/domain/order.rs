@@ -14,7 +14,7 @@ pub struct LimitOrder {
     pub action: OrderAction,
     pub px: u32,
     pub qty: u32,
-    pub placed_time: u128,
+    pub placed_time: u64,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

@@ -90,12 +90,12 @@ pub struct NewOrderAck {
     pub id: u32,
     pub px: u32,
     pub qty: u32,
-    pub ack_time: u128,
+    pub ack_time: u64,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CancelOrderAck {
-    pub ack_time: u128,
+    pub ack_time: u64,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

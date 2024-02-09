@@ -1,12 +1,11 @@
 use std::{sync::{Arc, mpsc::Receiver, Mutex}, thread};
-use std::time::Instant;
 
 use common::message::MarketDataFullSnapshot;
 
 use crate::domain::execution::Execution;
 use crate::domain::order::Order;
 use crate::engine::clob::CentralLimitOrderBook;
-use crate::memory::util::uninitialized_arr;
+use crate::util::memory::uninitialized_arr;
 
 const MAX_EXECUTIONS_PER_CYCLE: usize = 1000;
 
@@ -50,15 +49,25 @@ impl MatchEngine {
     fn matching_cycle(book_handle: Arc<Mutex<CentralLimitOrderBook>>) -> ! {
         let mut executions_buffer = uninitialized_arr::<Execution, MAX_EXECUTIONS_PER_CYCLE>();
 
+        let mut n_iterations = 0;
+        let mut time = minstant::Instant::now();
+
         loop {
-            let cycle_timer = Instant::now();
             let mut book = book_handle.lock().unwrap();
             let executions = book.check_for_trades(MAX_EXECUTIONS_PER_CYCLE, &mut executions_buffer);
 
             if executions > 0 {
-                println!("cycle ns: {} executions: {}", cycle_timer.elapsed().as_nanos(), executions);
                 book.populate_md_mutex();
             }
+
+            // clamp freq as elapsed is expensive
+            if n_iterations % 1000 == 0 && time.elapsed().as_millis() > 1000 {
+                println!("ave. cycle ns: {} execs: {}", 1e+9f32 / n_iterations as f32, executions);
+                time = minstant::Instant::now();
+                n_iterations = 0;
+            }
+
+            n_iterations += 1;
         }
     }
 }
