@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use common::message::{OrderAction};
+use common::engine::{OrderAction};
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Order {
