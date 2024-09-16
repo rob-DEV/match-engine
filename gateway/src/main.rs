@@ -1,7 +1,7 @@
 mod fix_engine;
 
 use crate::fix_engine::FixEngine;
-use common::engine::{InboundEngineMessage, InboundMessage, NewOrderAck, OrderAction, OutboundEngineMessage, OutboundMessage, RejectionMessage};
+use common::engine::{InboundEngineMessage, InboundMessage, NewOrder, NewOrderAck, OrderAction, OutboundEngineMessage, OutboundMessage, RejectionMessage};
 use fefix::FixValue;
 use lazy_static::lazy_static;
 use std::error::Error;
@@ -64,7 +64,6 @@ async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<In
             let session_id = random::<u32>();
             let mut seq_no = 0;
 
-
             loop {
 
                 let socket_bytes_read = socket
@@ -82,10 +81,28 @@ async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<In
                         inbound_message: inbound_message_parsed_result.unwrap(),
                     };
 
-                    let ss = inbound_engine_message_tx.send(inbound_engine_message);
+                    // let ss = inbound_engine_message_tx.send(inbound_engine_message);
 
+                    let buy = InboundEngineMessage {
+                        seq_num: 0,
+                        inbound_message: InboundMessage::NewOrder(NewOrder {
+                            order_action: OrderAction::BUY,
+                            px: 100,
+                            qty: 50,
+                        }),
+                    };
 
+                    let sell = InboundEngineMessage {
+                        seq_num: 0,
+                        inbound_message: InboundMessage::NewOrder(NewOrder {
+                            order_action: OrderAction::SELL,
+                            px: 100,
+                            qty: 50,
+                        }),
+                    };
 
+                    inbound_engine_message_tx.send(buy).unwrap();
+                    inbound_engine_message_tx.send(sell).unwrap();
 
                     let outbound_fix_message = fix_arc_mutex.lock()
                         .unwrap()

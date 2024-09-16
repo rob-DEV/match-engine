@@ -1,11 +1,12 @@
-use crate::domain::order::Order;
-use common::engine::{InboundEngineMessage, InboundMessage, NewOrderAck, OrderAction, OutboundEngineMessage, OutboundMessage};
+use crate::domain::order::{CancelOrder, LimitOrder, Order};
+use common::engine::{InboundEngineMessage, InboundMessage, NewOrder, NewOrderAck, OrderAction, OutboundEngineMessage, OutboundMessage};
 use lazy_static::lazy_static;
 use std::error::Error;
 use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::mpsc;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 use std::{env, thread};
+use rand::random;
 
 mod engine;
 mod domain;
@@ -19,12 +20,15 @@ lazy_static! {
 
 fn main() -> Result<(), Box<dyn Error>> {
     println!("Initializing Engine");
-    let (engine_msg_out_tx, engine_msg_out_rx): (mpsc::Sender<OutboundEngineMessage>, mpsc::Receiver<OutboundEngineMessage>) = mpsc::channel();
+    let (engine_msg_out_tx, engine_msg_out_rx): (Sender<OutboundEngineMessage>, Receiver<OutboundEngineMessage>) = mpsc::channel();
+    let (order_entry_tx, order_entry_rx): (Sender<Order>, Receiver<Order>) = mpsc::channel();
 
+    let match_engine = engine::match_engine::MatchEngine::new();
+    match_engine.run(order_entry_rx);
 
     let engine_msg_in_thread = thread::spawn(|| {
         println!("Initializing Engine MSG_IN thread");
-        initialize_engine_in_message_receiver().expect("failed to initialize engine MSG_IN thread");
+        initialize_engine_in_message_receiver(order_entry_tx).expect("failed to initialize engine MSG_IN thread");
     });
 
     let engine_msg_out_thread = thread::spawn(|| {
@@ -35,20 +39,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     engine_msg_out_thread.join().unwrap();
     engine_msg_in_thread.join().unwrap();
 
-    // Engine Channels - Order Entry & Market Data
-    let (order_entry_tx, order_entry_rx): (mpsc::Sender<Order>, mpsc::Receiver<Order>) = mpsc::channel();
-
-    // Engine started on separate non-tokio threads
-    // let match_engine = engine::match_engine::MatchEngine::new();
-    // match_engine.run(order_entry_rx);
-
-    // let match_server = engine::match_server::MatchServer::new(app_port, order_entry_tx);
-    // match_server.await.run().await;
-
     Ok(())
 }
 
-fn initialize_engine_in_message_receiver() -> Result<(), Box<dyn Error>> {
+fn initialize_engine_in_message_receiver(order_entry_tx: Sender<Order>) -> Result<(), Box<dyn Error>> {
     println!("Initializing Engine MSG_IN multicast on port {}", *ENGINE_MSG_IN_PORT);
     use socket2::{Domain, Protocol, Socket, Type};
     let udp_multicast_socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP))?;
@@ -68,8 +62,21 @@ fn initialize_engine_in_message_receiver() -> Result<(), Box<dyn Error>> {
         let inbound_engine_message: InboundEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
 
         match inbound_engine_message.inbound_message {
-            InboundMessage::NewOrder(_) => {}
-            InboundMessage::CancelOrder(_) => {}
+            InboundMessage::NewOrder(new) => {
+                order_entry_tx.send(Order::New(LimitOrder {
+                    id: random::<u32>(),
+                    action: new.order_action,
+                    px: new.px,
+                    qty: new.qty,
+                    placed_time: 0,
+                })).unwrap()
+            }
+            InboundMessage::CancelOrder(cancel) => {
+                order_entry_tx.send(Order::Cancel(CancelOrder {
+                    action: cancel.order_action,
+                    id: cancel.order_id,
+                })).unwrap()
+            }
         }
 
         if time.elapsed().as_millis() > 1000 {
@@ -97,7 +104,6 @@ fn initialize_engine_out_message_submitter(rx: Receiver<OutboundEngineMessage>) 
     let send_addr = "0.0.0.0:3500".parse::<SocketAddr>().unwrap();
 
     println!("Awaiting MSG_OUT messages");
-
 
     let mut vec = Vec::new();
     for _ in 1..4096 {

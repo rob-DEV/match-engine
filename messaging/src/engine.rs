@@ -44,6 +44,7 @@ pub struct NewOrder {
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct CancelOrder {
+    pub order_action: OrderAction,
     pub order_id: u32,
 }
 
