@@ -7,6 +7,7 @@ pub struct InboundEngineMessage {
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct OutboundEngineMessage {
+    pub session_id: u32,
     pub seq_num: u32,
     pub outbound_message: OutboundMessage,
 }

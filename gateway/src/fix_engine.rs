@@ -2,20 +2,20 @@ use common::engine::{InboundEngineMessage, InboundMessage, NewOrder, OrderAction
 use fefix::prelude::*;
 use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder, Message};
 
-pub struct FixMessageConversion {
+pub struct FixEngine {
     fix_decoder: Decoder<>,
     fix_encoder: Encoder<>
 }
 
-impl FixMessageConversion {
-    pub fn new() -> FixMessageConversion {
+impl FixEngine {
+    pub fn new() -> FixEngine {
         let mut fix_decoder = Decoder::<Config>::new(Dictionary::fix44());
         fix_decoder.config_mut().set_separator(b'|');
 
         let mut fix_encoder = Encoder::<Config>::default();
         fix_encoder.config_mut().set_separator(b'|');
 
-        FixMessageConversion {
+        FixEngine {
             fix_decoder,
             fix_encoder
         }
@@ -53,7 +53,8 @@ impl FixMessageConversion {
                 out_fix.set(fix44::SESSION_REJECT_REASON, 7)
             }
             OutboundMessage::EngineError(_) => {
-                unimplemented!()
+                let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
+                out_fix.set(fix44::SESSION_REJECT_REASON,  99)
             }
         };
 

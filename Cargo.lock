@@ -101,6 +101,7 @@ dependencies = [
  "common",
  "fefix",
  "lazy_static",
+ "minstant",
  "rand",
  "serde",
  "serde_json",
@@ -375,18 +376,6 @@ name = "clap_lex"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
-
-[[package]]
-name = "coarsetime"
-version = "0.1.33"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71367d3385c716342014ad17e3d19f7788ae514885a1f4c24f500260fb365e1a"
-dependencies = [
- "libc",
- "once_cell",
- "wasi",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "colorchoice"
@@ -1265,11 +1254,10 @@ dependencies = [
 
 [[package]]
 name = "minstant"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e326a3745e3f61d1715722ed4e72c0e9689aac76f1496c4deeeb64dd68f93fb"
+checksum = "1fb9b5c752f145ac5046bccc3c4f62892e3c950c1d1eab80c5949cd68a2078db"
 dependencies = [
- "coarsetime",
  "ctor",
  "web-time",
 ]
