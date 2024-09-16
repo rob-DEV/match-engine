@@ -139,7 +139,7 @@ fn initialize_engine_out_message_receiver(engine_out_message_store: Arc<Mutex<Ha
 
     let udp_socket = std::net::UdpSocket::from(udp_multicast_socket);
 
-    let mut buffer = [0; 1024];
+    let mut buffer = [0; 64000];
     let mut req_per_second: usize = 0;
     let mut time = minstant::Instant::now();
 
@@ -154,7 +154,7 @@ fn initialize_engine_out_message_receiver(engine_out_message_store: Arc<Mutex<Ha
 
         if time.elapsed().as_millis() > 1000 {
             time = minstant::Instant::now();
-            println!("Msg / sec: {}", req_per_second * 512);
+            println!("Msg / sec: {}", req_per_second * 4096);
             req_per_second = 0;
         }
 

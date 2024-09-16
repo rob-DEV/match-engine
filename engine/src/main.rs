@@ -94,13 +94,13 @@ fn initialize_engine_out_message_submitter(rx: Receiver<OutboundEngineMessage>) 
     udp_multicast_socket.bind(&SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, *ENGINE_MSG_OUT_PORT).into()).expect("failed to bind UDP socket");
 
     let udp_socket = std::net::UdpSocket::from(udp_multicast_socket);
-    let send_addr = "239.1.1.1:3500".parse::<SocketAddr>().unwrap();
+    let send_addr = "0.0.0.0:3500".parse::<SocketAddr>().unwrap();
 
     println!("Awaiting MSG_OUT messages");
 
 
     let mut vec = Vec::new();
-    for _ in 1..512 {
+    for _ in 1..4096 {
         vec.push(OutboundEngineMessage {
             session_id: 0,
             seq_num: seq,
@@ -125,7 +125,7 @@ fn initialize_engine_out_message_submitter(rx: Receiver<OutboundEngineMessage>) 
 
         if time.elapsed().as_millis() > 1000 {
             time = minstant::Instant::now();
-            println!("Msg / sec: {}", req_per_second * 512);
+            println!("Msg / sec: {}", req_per_second * 4096);
             req_per_second = 0;
         }
 
