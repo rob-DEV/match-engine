@@ -26,6 +26,9 @@ pub enum OutboundMessage {
     CancelOrderAck(CancelOrderAck),
     RejectionMessage(RejectionMessage),
 
+    TradeExecution(TradeExecution),
+
+
     EngineError(EngineError),
 }
 
@@ -62,6 +65,12 @@ pub struct CancelOrderAck {
     pub order_id: u32,
     pub ack_time: u64,
 }
+
+#[derive(Encode, Decode, PartialEq, Debug)]
+pub struct TradeExecution {
+    pub execution_id: u32
+}
+
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct RejectionMessage {

@@ -45,9 +45,6 @@ impl FixEngine {
                 let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"ExecutionReport");
 
             }
-            OutboundMessage::CancelOrderAck(_) => {
-                unimplemented!()
-            }
             OutboundMessage::RejectionMessage(_) => {
                 let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
                 out_fix.set(fix44::SESSION_REJECT_REASON, 7)
@@ -55,6 +52,9 @@ impl FixEngine {
             OutboundMessage::EngineError(_) => {
                 let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
                 out_fix.set(fix44::SESSION_REJECT_REASON,  99)
+            }
+            _ => {
+                unimplemented!()
             }
         };
 

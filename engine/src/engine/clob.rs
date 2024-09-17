@@ -1,7 +1,6 @@
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, BTreeMap};
+use std::collections::{BinaryHeap};
 use std::fmt::{Debug, Formatter};
-use std::sync::{Arc, Mutex};
 
 use rand::random;
 
