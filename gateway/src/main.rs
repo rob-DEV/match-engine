@@ -102,11 +102,13 @@ async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<In
                     task_inbound_engine_message_tx.send(buy).unwrap();
                     task_inbound_engine_message_tx.send(sell).unwrap();
 
-                    match outbound_engine_rx.try_recv() {
-                        Ok(engine_out_message) => {
-                            println!("Received message for client from engine {:?}", engine_out_message);
+                    loop {
+                        match outbound_engine_rx.try_recv() {
+                            Ok(engine_out_message) => {
+                                println!("Received message for client from engine {:?}", engine_out_message);
+                            }
+                            Err(_) => {}
                         }
-                        Err(_) => {}
                     }
 
                     let outbound_fix_message = task_fix_engine.lock()
