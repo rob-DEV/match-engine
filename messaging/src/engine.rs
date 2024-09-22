@@ -1,4 +1,12 @@
 use bitcode::{Decode, Encode};
+
+// Common
+#[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
+pub enum OrderAction {
+    BUY,
+    SELL,
+}
+// Inbound
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct InboundEngineMessage {
     pub seq_num: u32,
@@ -6,37 +14,20 @@ pub struct InboundEngineMessage {
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]
-pub struct OutboundEngineMessage {
-    pub session_id: u32,
-    pub seq_num: u32,
-    pub outbound_message: OutboundMessage,
-}
-
-
-#[derive(Encode, Decode, PartialEq, Debug)]
 pub enum InboundMessage {
+    Logon(Logon),
+    LogOut(Logout),
     NewOrder(NewOrder),
     CancelOrder(CancelOrder),
 }
 
+#[derive(Encode, Decode, PartialEq, Debug)]
+pub struct Logon {
+    pub heartbeat_sec: u32,
+}
 
 #[derive(Encode, Decode, PartialEq, Debug)]
-pub enum OutboundMessage {
-    NewOrderAck(NewOrderAck),
-    CancelOrderAck(CancelOrderAck),
-    RejectionMessage(RejectionMessage),
-
-    TradeExecution(TradeExecution),
-
-
-    EngineError(EngineError),
-}
-
-#[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
-pub enum OrderAction {
-    BUY,
-    SELL,
-}
+pub struct Logout {}
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct NewOrder {
@@ -50,6 +41,26 @@ pub struct CancelOrder {
     pub order_action: OrderAction,
     pub order_id: u32,
 }
+
+#[derive(Encode, Decode, PartialEq, Debug)]
+pub struct OutboundEngineMessage {
+    pub session_id: u32,
+    pub seq_num: u32,
+    pub outbound_message: OutboundMessage,
+}
+
+// Outbound
+#[derive(Encode, Decode, PartialEq, Debug)]
+pub enum OutboundMessage {
+    NewOrderAck(NewOrderAck),
+    CancelOrderAck(CancelOrderAck),
+    RejectionMessage(RejectionMessage),
+
+    TradeExecution(TradeExecution),
+
+    EngineError(EngineError),
+}
+
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct NewOrderAck {
@@ -67,14 +78,13 @@ pub struct CancelOrderAck {
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]
-pub struct TradeExecution {
-    pub execution_id: u32
+pub struct RejectionMessage {
+    pub reject_reason: u32,
 }
 
-
 #[derive(Encode, Decode, PartialEq, Debug)]
-pub struct RejectionMessage {
-    pub reject_reason: u32
+pub struct TradeExecution {
+    pub execution_id: u32,
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]

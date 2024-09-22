@@ -28,11 +28,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     match_engine.run(order_entry_rx, engine_msg_out_tx);
 
     let engine_msg_in_thread = thread::spawn(|| {
-        initialize_engine_in_message_receiver(order_entry_tx).expect("failed to initialize engine MSG_IN thread");
+        initialize_engine_msg_in_receiver(order_entry_tx).expect("failed to initialize engine MSG_IN thread");
     });
 
     let engine_msg_out_thread = thread::spawn(|| {
-        initialize_engine_out_message_submitter(engine_msg_out_rx).expect("failed to initialize engine MSG_OUT thread");
+        initialize_engine_msg_out_submitter(engine_msg_out_rx).expect("failed to initialize engine MSG_OUT thread");
     });
 
     engine_msg_out_thread.join().unwrap();
@@ -41,7 +41,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn initialize_engine_in_message_receiver(order_entry_tx: Sender<Order>) -> Result<(), Box<dyn Error>> {
+fn initialize_engine_msg_in_receiver(order_entry_tx: Sender<Order>) -> Result<(), Box<dyn Error>> {
     use socket2::{Domain, Protocol, Socket, Type};
     let udp_multicast_socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
     udp_multicast_socket.set_reuse_address(true).expect("failed to set reuse address");
@@ -73,11 +73,14 @@ fn initialize_engine_in_message_receiver(order_entry_tx: Sender<Order>) -> Resul
                     id: cancel.order_id,
                 })).unwrap()
             }
+            _ => {
+                unimplemented!()
+            }
         }
     }
 }
 
-fn initialize_engine_out_message_submitter(rx: Receiver<OutboundEngineMessage>) -> Result<(), Box<dyn Error>> {
+fn initialize_engine_msg_out_submitter(rx: Receiver<OutboundEngineMessage>) -> Result<(), Box<dyn Error>> {
     use socket2::{Domain, Type};
     let udp_multicast_socket = socket2::Socket::new(Domain::IPV4, Type::DGRAM, Some(socket2::Protocol::UDP)).expect("failed to create UDP socket");
     udp_multicast_socket.set_reuse_address(true).expect("failed to set reuse address");

@@ -1,49 +1,84 @@
-use common::engine::{InboundEngineMessage, InboundMessage, NewOrder, OrderAction, OutboundEngineMessage, OutboundMessage};
+use common::engine::{InboundEngineMessage, InboundMessage, Logon, OutboundEngineMessage, OutboundMessage};
+use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;
-use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder, Message};
+use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder};
 
-pub struct FixEngine {
+pub struct MessageConverter {
     fix_decoder: Decoder<>,
-    fix_encoder: Encoder<>
+    fix_encoder: Encoder<>,
 }
 
-impl FixEngine {
-    pub fn new() -> FixEngine {
-        let mut fix_decoder = Decoder::<Config>::new(Dictionary::fix44());
+impl MessageConverter {
+    pub fn new() -> MessageConverter {
+        let mut fix_decoder = Decoder::<Config>::new(Dictionary::fix42());
         fix_decoder.config_mut().set_separator(b'|');
 
         let mut fix_encoder = Encoder::<Config>::default();
         fix_encoder.config_mut().set_separator(b'|');
 
-        FixEngine {
+        MessageConverter {
             fix_decoder,
-            fix_encoder
+            fix_encoder,
         }
     }
-    pub fn fix_to_inbound_engine_message(&mut self, fix_message_buffer: &[u8]) -> Result<InboundMessage, DecodeError> {
-        let fix_parse_result = self.fix_decoder.decode(fix_message_buffer);
+    pub fn fix_to_in_msg(&mut self, fix_message_buffer: &[u8]) -> Result<InboundEngineMessage, DecodeError> {
+        let fix_msg = self.fix_decoder.decode(fix_message_buffer)?;
 
-        match fix_parse_result {
-            Ok(msg) => {
-                Ok(InboundMessage::NewOrder {
-                    0: NewOrder {
-                        order_action: OrderAction::BUY,
-                        px: 0,
-                        qty: 0,
-                    },
-                })
-            },
-            Err(err) => Err(err)
-        }
+        let fix_msg_type = MsgType::deserialize(fix_msg.fv(fix42::MSG_TYPE).unwrap()).unwrap();
+
+        let msg = match fix_msg_type {
+            MsgType::Logon => {
+                println!("Logon");
+                let heartbeat_int: u32 = fix_msg.fv(fix42::HEART_BT_INT).unwrap();
+
+                InboundEngineMessage {
+                    seq_num: 0,
+                    inbound_message: InboundMessage::Logon(Logon {
+                        heartbeat_sec: heartbeat_int
+                    }),
+                }
+            }
+            MsgType::Logout => {
+                println!("Logout");
+                InboundEngineMessage {
+                    seq_num: 0,
+                    inbound_message: InboundMessage::Logon(Logon {
+                        heartbeat_sec: 0
+                    }),
+                }
+            }
+            MsgType::OrderSingle => {
+                println!("NewOrderSingle");
+                InboundEngineMessage {
+                    seq_num: 0,
+                    inbound_message: InboundMessage::Logon(Logon {
+                        heartbeat_sec: 0
+                    }),
+                }
+            }
+            MsgType::OrderCancelRequest => {
+                println!("OrderCancelRequest");
+                InboundEngineMessage {
+                    seq_num: 0,
+                    inbound_message: InboundMessage::Logon(Logon {
+                        heartbeat_sec: 0
+                    }),
+                }
+            }
+
+            _ => { unimplemented!() }
+        };
+
+        //
+        Ok(msg)
     }
 
-    pub fn outbound_engine_message_to_fix(&mut self, outbound_engine_message: OutboundEngineMessage) -> Vec<u8> {
+    pub fn engine_msg_out_to_fix(&mut self, engine_msg_out: OutboundEngineMessage) -> Vec<u8> {
         let mut out_buffer = vec![0; 2048];
 
-        match outbound_engine_message.outbound_message {
+        match engine_msg_out.outbound_message {
             OutboundMessage::NewOrderAck(_) => {
                 let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"ExecutionReport");
-
             }
             OutboundMessage::RejectionMessage(_) => {
                 let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
@@ -51,7 +86,7 @@ impl FixEngine {
             }
             OutboundMessage::EngineError(_) => {
                 let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
-                out_fix.set(fix44::SESSION_REJECT_REASON,  99)
+                out_fix.set(fix44::SESSION_REJECT_REASON, 99)
             }
             _ => {
                 unimplemented!()
