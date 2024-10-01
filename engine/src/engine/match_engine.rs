@@ -62,6 +62,9 @@ impl MatchEngine {
                         execution_id: random::<u32>()
                     })
                 };
+
+                println!("Execution: {:?}", out);
+
                 engine_msg_out_tx.send(out).unwrap()
             }
 

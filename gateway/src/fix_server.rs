@@ -1,13 +1,12 @@
 use crate::fix_engine::MessageConverter;
-use common::engine::{InboundEngineMessage, InboundMessage, OutboundEngineMessage, OutboundMessage, RejectionMessage};
-use fefix::FixValue;
+use common::engine::{InboundEngineMessage, OutboundEngineMessage};
 use rand::random;
 use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::time::Duration;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::Interval;
 
@@ -24,6 +23,7 @@ struct FixSessionState {
 
     engine_msg_in_tx: Sender<InboundEngineMessage>,
     engine_msg_out_rx: Receiver<OutboundEngineMessage>,
+    messages: Vec<String>,
 }
 
 impl FixSessionState {
@@ -43,57 +43,50 @@ impl FixSessionState {
             logged_in: false,
             engine_msg_in_tx,
             engine_msg_out_rx,
+            messages: vec![],
         }
     }
 }
 
-pub async fn handle_fix_session(connection: (TcpStream, SocketAddr), message_converter: Arc<Mutex<MessageConverter>>, inbound_engine_message_tx: Sender<InboundEngineMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<OutboundEngineMessage>>>>) {
-    let (mut socket, client_addr) = connection;
-    let (mut read, mut write) = socket.split();
+pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_converter: Arc<Mutex<MessageConverter>>, inbound_engine_message_tx: Sender<InboundEngineMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<OutboundEngineMessage>>>>) {
+    let (mut stream, client_addr) = connection;
+    let (reader, writer) = stream.into_split();
+    let mut buf_reader = BufReader::new(reader);
+    let mut writer = writer;
 
-    let mut state = FixSessionState::new(client_addr, inbound_engine_message_tx, session_msg_tx_map);
+    let read_task = tokio::spawn(async move {
+        let mut line = String::new();
+        loop {
+            line.clear();
+            let bytes_read = buf_reader.read_line(&mut line).await.unwrap();
 
-    let mut fix_message_inbound_buffer = vec![0; 2048];
+            let fix = message_converter.lock().unwrap().fix_to_in_msg(&line.as_bytes()[..bytes_read - 1]);
 
-    loop {
-        tokio::select! {
-            _ = state.heartbeat_interval.tick() => {
-                write.write(&"heartbeat-message\n".to_bytes()).await;
+            match fix {
+                Ok(inbound_message) => { inbound_engine_message_tx.clone().send(inbound_message).unwrap() }
+                Err(err) => { eprintln!("Error: {}", err); }
             }
 
-            result = read.read(&mut fix_message_inbound_buffer) => {
-                let _bytes_read = result.unwrap();
-
-                 let inbound_message_result = message_converter.lock()
-                        .unwrap()
-                        .fix_to_in_msg(&fix_message_inbound_buffer[.._bytes_read]);
-
-                match inbound_message_result {
-                    Ok(engine_msg_in) => {
-                        match engine_msg_in.inbound_message {
-                            InboundMessage::Logon(logon) => { write.write(&fix_message_inbound_buffer).await; state.logged_in = true; },
-                            InboundMessage::LogOut(logout) => { write.write(&fix_message_inbound_buffer).await; }
-                            InboundMessage::NewOrder(new_order) => {}
-                            InboundMessage::CancelOrder(cancel_order) => {}
-                        }
-                    }
-                    Err(decode_err) => {
-                        // Reject inbound fix // apply seq nonetheless
-                        let rejection = message_converter.lock()
-                        .unwrap()
-                        .engine_msg_out_to_fix(OutboundEngineMessage {
-                            session_id: state.session_id,
-                            seq_num: 0,
-                            outbound_message: OutboundMessage::RejectionMessage(RejectionMessage {
-                                reject_reason: 0,
-                            }),
-                        });
-                        write.write(&rejection).await;
-                    }
-                }
-
-                write.write(&fix_message_inbound_buffer).await;
+            if bytes_read == 0 {
+                println!("Client disconnected");
+                break;
             }
+
+            println!("Received: {}", line.trim());
         }
-    }
+    });
+
+    let write_task = tokio::spawn(async move {
+        let mut count = 0;
+        loop {
+            // let message = format!("Message number: {}\n", count);
+            // if writer.write_all(message.as_bytes()).await.is_err() {
+            //     break;
+            // }
+            // count += 1;
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
+    });
+
+    let _ = tokio::try_join!(read_task, write_task);
 }

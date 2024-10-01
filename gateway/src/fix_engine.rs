@@ -1,7 +1,8 @@
-use common::engine::{InboundEngineMessage, InboundMessage, Logon, OutboundEngineMessage, OutboundMessage};
+use common::engine::{InboundEngineMessage, InboundMessage, Logon, NewOrder, OrderAction, OutboundEngineMessage, OutboundMessage};
 use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;
 use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder};
+use rand::random;
 
 pub struct MessageConverter {
     fix_decoder: Decoder<>,
@@ -49,10 +50,20 @@ impl MessageConverter {
             }
             MsgType::OrderSingle => {
                 println!("NewOrderSingle");
+
+                let fix_msg_px = fix_msg.fv::<u32>(fix44::PRICE).unwrap();
+                let fix_msg_qty = fix_msg.fv::<u32>(fix44::ORDER_QTY).unwrap();
+                let fix_msg_side = fix_msg.fv::<&str>(fix44::SIDE).unwrap();
+
+                let mut order_action = OrderAction::BUY;
+                if fix_msg_side == "2" { order_action = OrderAction::SELL; }
+
                 InboundEngineMessage {
                     seq_num: 0,
-                    inbound_message: InboundMessage::Logon(Logon {
-                        heartbeat_sec: 0
+                    inbound_message: InboundMessage::NewOrder(NewOrder {
+                        order_action,
+                        px: fix_msg_px,
+                        qty: fix_msg_qty,
                     }),
                 }
             }
@@ -66,7 +77,25 @@ impl MessageConverter {
                 }
             }
 
-            _ => { unimplemented!() }
+            _ => {
+                let rand = random::<u32>() % 2 == 0;
+
+                let order_action;
+                if rand {
+                    order_action = OrderAction::BUY
+                } else {
+                    order_action = OrderAction::SELL
+                }
+
+                InboundEngineMessage {
+                    seq_num: 0,
+                    inbound_message: InboundMessage::NewOrder(NewOrder {
+                        order_action,
+                        px: 30,
+                        qty: 30,
+                    }),
+                }
+            }
         };
 
         //

@@ -2,7 +2,7 @@ mod fix_engine;
 mod fix_server;
 
 use crate::fix_engine::MessageConverter;
-use crate::fix_server::handle_fix_session;
+use crate::fix_server::on_client_connection;
 use common::engine::{InboundEngineMessage, OutboundEngineMessage};
 use fefix::FixValue;
 use lazy_static::lazy_static;
@@ -59,7 +59,7 @@ async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<In
         let task_session_msg_tx_map = session_msg_tx_map.clone();
 
         tokio::spawn(async move {
-            handle_fix_session(connection, task_message_converter, task_inbound_engine_message_tx, task_session_msg_tx_map).await;
+            on_client_connection(connection, task_message_converter, task_inbound_engine_message_tx, task_session_msg_tx_map).await;
         });
     }
 }
@@ -101,13 +101,13 @@ fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Se
             Ok((size, addr)) => {
                 let outbound_engine_messages: OutboundEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
 
-                match session_data_tx.lock() {
-                    Ok(session_data) => {
-                        let blah = session_data.get(&outbound_engine_messages.session_id).unwrap();
-                        blah.send(outbound_engine_messages).unwrap()
-                    }
-                    Err(_) => {}
-                }
+                // match session_data_tx.lock() {
+                //     Ok(session_data) => {
+                //         let blah = session_data.get(&outbound_engine_messages.session_id).unwrap();
+                //         blah.send(outbound_engine_messages).unwrap()
+                //     }
+                //     Err(_) => {}
+                // }
             }
             Err(_) => {}
         }
