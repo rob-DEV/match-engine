@@ -31,6 +31,7 @@ pub struct Logout {}
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct NewOrder {
+    pub client_id: u32,
     pub order_action: OrderAction,
     pub px: u32,
     pub qty: u32,
@@ -38,6 +39,7 @@ pub struct NewOrder {
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct CancelOrder {
+    pub client_id: u32,
     pub order_action: OrderAction,
     pub order_id: u32,
 }
@@ -63,6 +65,7 @@ pub enum OutboundMessage {
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct NewOrderAck {
+    pub client_id: u32,
     pub action: OrderAction,
     pub order_id: u32,
     pub px: u32,
@@ -72,6 +75,7 @@ pub struct NewOrderAck {
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct CancelOrderAck {
+    pub client_id: u32,
     pub order_id: u32,
     pub ack_time: u64,
 }
@@ -84,7 +88,9 @@ pub struct RejectionMessage {
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct TradeExecution {
     pub execution_id: u32,
+    pub bid_client_id: u32,
     pub bid_id: u32,
+    pub ask_client_id: u32,
     pub ask_id: u32,
     pub fill_qty: u32,
     pub px: u32,

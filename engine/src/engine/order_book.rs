@@ -1,5 +1,5 @@
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap};
+use std::collections::BinaryHeap;
 use std::fmt::{Debug, Formatter};
 
 use rand::random;
@@ -79,8 +79,8 @@ impl CentralLimitOrderBook {
                     self.bids.pop();
 
                     // move the execution to the outbound buffer
-                    executions += 1;
                     arr[executions] = execution;
+                    executions += 1;
 
                     // add any remaining qty to the book
                     if let Some(rem) = remainder {

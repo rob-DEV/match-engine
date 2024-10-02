@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-use common::engine::{OrderAction};
+use common::engine::OrderAction;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub enum Order {
@@ -10,6 +10,7 @@ pub enum Order {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct LimitOrder {
+    pub client_id: u32,
     pub id: u32,
     pub action: OrderAction,
     pub px: u32,
@@ -19,6 +20,7 @@ pub struct LimitOrder {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct CancelOrder {
+    pub client_id: u32,
     pub action: OrderAction,
     pub id: u32,
 }

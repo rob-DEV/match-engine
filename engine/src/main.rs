@@ -1,4 +1,5 @@
 use crate::domain::order::{CancelOrder, LimitOrder, Order};
+use crate::util::time::epoch_nanos;
 use common::engine::{InboundEngineMessage, InboundMessage, OutboundEngineMessage};
 use lazy_static::lazy_static;
 use rand::random;
@@ -60,15 +61,17 @@ fn initialize_engine_msg_in_receiver(order_entry_tx: Sender<Order>) -> Result<()
         match inbound_engine_message.inbound_message {
             InboundMessage::NewOrder(new) => {
                 order_entry_tx.send(Order::New(LimitOrder {
+                    client_id: new.client_id,
                     id: random::<u32>(),
                     action: new.order_action,
                     px: new.px,
                     qty: new.qty,
-                    placed_time: 0,
+                    placed_time: epoch_nanos(),
                 })).unwrap()
             }
             InboundMessage::CancelOrder(cancel) => {
                 order_entry_tx.send(Order::Cancel(CancelOrder {
+                    client_id: cancel.client_id,
                     action: cancel.order_action,
                     id: cancel.order_id,
                 })).unwrap()

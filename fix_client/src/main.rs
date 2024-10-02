@@ -108,11 +108,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             let fix_message;
             match command {
                 Command::Buy(px, qty) => {
-                    fix_message = build_buy_nos(px, qty) + "\n";
+                    fix_message = build_buy_nos(px, qty);
                     sender.clone().send(fix_message.to_string() + "\n").expect("TODO: panic message");
                 }
                 Command::Sell(px, qty) => {
-                    fix_message = build_sell_nos(px, qty) + "\n";
+                    fix_message = build_sell_nos(px, qty);
                     sender.clone().send(fix_message.to_string() + "\n").expect("TODO: panic message");
                 }
                 Command::Cancel(order_id) => {

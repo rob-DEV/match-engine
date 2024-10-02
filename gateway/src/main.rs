@@ -3,7 +3,7 @@ mod fix_server;
 
 use crate::fix_engine::MessageConverter;
 use crate::fix_server::on_client_connection;
-use common::engine::{InboundEngineMessage, InboundMessage, OutboundEngineMessage};
+use common::engine::{InboundEngineMessage, InboundMessage, OutboundEngineMessage, OutboundMessage, TradeExecution};
 use fefix::FixValue;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -25,7 +25,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("--- Initializing Gateway ---");
 
     let (msg_in_tx, engine_msg_in_rx): (Sender<InboundMessage>, Receiver<InboundMessage>) = mpsc::channel();
-    let gateway_to_engine_msg_in_tx = Arc::new(Mutex::new(HashMap::<u32, Sender<OutboundEngineMessage>>::new()));
+    let gateway_to_engine_msg_in_tx = Arc::new(Mutex::new(HashMap::<u32, Arc<Mutex<Sender<OutboundMessage>>>>::new()));
 
     let engine_msg_in_thread = thread::spawn(|| {
         initialize_msg_in_message_submitter(engine_msg_in_rx).expect("failed to initialize engine MSG_IN thread");
@@ -44,7 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<InboundMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<OutboundEngineMessage>>>>) -> Result<(), Box<dyn Error>> {
+async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<InboundMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Arc<Mutex<Sender<OutboundMessage>>>>>>) -> Result<(), Box<dyn Error>> {
     // Shared for now
     let message_converter = Arc::new(Mutex::new(MessageConverter::new()));
     let tcp_listener = tokio::net::TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], *GATEWAY_PORT)))
@@ -92,7 +92,7 @@ fn initialize_msg_in_message_submitter(rx: Receiver<InboundMessage>) -> Result<(
     Ok(())
 }
 
-fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Sender<OutboundEngineMessage>>>>) -> Result<(), Box<dyn Error>> {
+fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Arc<Mutex<Sender<OutboundMessage>>>>>>) -> Result<(), Box<dyn Error>> {
     use socket2::{Domain, Type};
     let udp_multicast_socket = socket2::Socket::new(Domain::IPV4, Type::DGRAM, Some(socket2::Protocol::UDP)).expect("failed to create UDP socket");
     udp_multicast_socket.set_reuse_address(true).expect("failed to set reuse address");
@@ -107,16 +107,44 @@ fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Se
 
     loop {
         match udp_socket.recv_from(&mut buffer) {
-            Ok((size, addr)) => {
-                let outbound_engine_messages: OutboundEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
+            Ok((size, _)) => {
+                let outbound_engine_message: OutboundEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
+                println!("MSG_OUT {:?}", outbound_engine_message);
 
-                // match session_data_tx.lock() {
-                //     Ok(session_data) => {
-                //         let blah = session_data.get(&outbound_engine_messages.session_id).unwrap();
-                //         blah.send(outbound_engine_messages).unwrap()
-                //     }
-                //     Err(_) => {}
-                // }
+                let outbound_message_type = &outbound_engine_message.outbound_message;
+
+                let mut lock = session_data_tx.lock().unwrap();
+                match outbound_message_type {
+                    OutboundMessage::NewOrderAck(a) => {
+                        let client_id = a.client_id;
+
+                        let blah = lock.get_mut(&client_id).unwrap().lock().unwrap();
+                        blah.send(outbound_engine_message.outbound_message).unwrap()
+                    }
+                    OutboundMessage::TradeExecution(execution) => {
+                        let bid_client_id = execution.bid_client_id;
+                        let ask_client_id = execution.ask_client_id;
+
+                        let ask_exec = OutboundMessage::TradeExecution(TradeExecution {
+                            execution_id: execution.execution_id,
+                            bid_client_id: execution.bid_client_id,
+                            bid_id: execution.bid_id,
+                            ask_client_id,
+                            ask_id: execution.ask_id,
+                            fill_qty: execution.fill_qty,
+                            px: execution.px,
+                            execution_time: execution.execution_time,
+                        });
+
+                        let blah = lock.get(&bid_client_id).unwrap().lock().unwrap();
+                        blah.send(outbound_engine_message.outbound_message).unwrap();
+
+                        // hack clone to other side
+                        let blah = lock.get(&ask_client_id).unwrap().lock().unwrap();
+                        blah.send(ask_exec).unwrap();
+                    }
+                    _ => { unimplemented!() }
+                }
             }
             Err(_) => {}
         }

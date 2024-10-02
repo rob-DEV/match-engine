@@ -21,7 +21,7 @@ impl MessageConverter {
             fix_encoder,
         }
     }
-    pub fn fix_to_in_msg(&mut self, fix_message_buffer: &[u8]) -> Result<InboundMessage, DecodeError> {
+    pub fn fix_to_in_msg(&mut self, client_id: u32, fix_message_buffer: &[u8]) -> Result<InboundMessage, DecodeError> {
         let fix_msg = self.fix_decoder.decode(fix_message_buffer)?;
 
         let fix_msg_type = MsgType::deserialize(fix_msg.fv(fix42::MSG_TYPE).unwrap()).unwrap();
@@ -50,6 +50,7 @@ impl MessageConverter {
                 if fix_msg_side == "2" { order_action = OrderAction::SELL; }
 
                 InboundMessage::NewOrder(NewOrder {
+                    client_id,
                     order_action,
                     px: fix_msg_px,
                     qty: fix_msg_qty,
