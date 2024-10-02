@@ -1,13 +1,12 @@
-use std::{sync::{Arc, mpsc::Receiver, Mutex}, thread};
-use std::sync::mpsc::Sender;
-use rand::random;
-use common::engine::{OutboundEngineMessage, OutboundMessage, TradeExecution};
 use crate::domain::execution::Execution;
 use crate::domain::order::Order;
 use crate::engine::order_book::CentralLimitOrderBook;
 use crate::util::memory::uninitialized_arr;
+use common::engine::{OutboundEngineMessage, OutboundMessage, TradeExecution};
+use std::sync::mpsc::Sender;
+use std::{sync::{mpsc::Receiver, Arc, Mutex}, thread};
 
-const MAX_EXECUTIONS_PER_CYCLE: usize = 1000;
+const MAX_EXECUTIONS_PER_CYCLE: usize = 2000;
 
 pub struct MatchEngine {
     book_mutex: Arc<Mutex<CentralLimitOrderBook>>,
@@ -45,29 +44,50 @@ impl MatchEngine {
     }
 
     fn matching_cycle(book_handle: Arc<Mutex<CentralLimitOrderBook>>, engine_msg_out_tx: Sender<OutboundEngineMessage>) -> ! {
-        let mut executions_buffer = uninitialized_arr::<Execution, MAX_EXECUTIONS_PER_CYCLE>();
+        let mut executions_buf = uninitialized_arr::<Execution, MAX_EXECUTIONS_PER_CYCLE>();
 
-        let mut n_iterations = 0;
-        let mut time = minstant::Instant::now();
+        let mut execution_seq_num = 0;
 
         loop {
             let mut book = book_handle.lock().unwrap();
-            let executions = book.check_for_trades(MAX_EXECUTIONS_PER_CYCLE, &mut executions_buffer);
+            let executions = book.check_for_trades(MAX_EXECUTIONS_PER_CYCLE, &mut executions_buf);
 
-            for i in 0..executions {
-                let out = OutboundEngineMessage {
-                    session_id: 1,
-                    seq_num: 0,
-                    outbound_message: OutboundMessage::TradeExecution(TradeExecution {
-                        execution_id: random::<u32>()
-                    })
-                };
+            for index in 0..executions {
+                let execution = &executions_buf[index];
 
-                println!("Execution: {:?}", out);
+                let outbound_execution_message;
+                match execution {
+                    Execution::FullMatch(full_match) => {
+                        outbound_execution_message = OutboundEngineMessage {
+                            seq_num: execution_seq_num,
+                            outbound_message: OutboundMessage::TradeExecution(TradeExecution {
+                                execution_id: full_match.id,
+                                bid_id: full_match.bid.id,
+                                ask_id: full_match.ask.id,
+                                fill_qty: full_match.bid.qty,
+                                px: full_match.bid.px,
+                                execution_time: full_match.execution_time,
+                            }),
+                        }
+                    }
+                    Execution::PartialMatch(partial_match) => {
+                        outbound_execution_message = OutboundEngineMessage {
+                            seq_num: execution_seq_num,
+                            outbound_message: OutboundMessage::TradeExecution(TradeExecution {
+                                execution_id: partial_match.id,
+                                bid_id: partial_match.bid.id,
+                                ask_id: partial_match.ask.id,
+                                fill_qty: partial_match.fill_qty,
+                                px: partial_match.bid.px,
+                                execution_time: partial_match.execution_time,
+                            }),
+                        }
+                    }
+                }
 
-                engine_msg_out_tx.send(out).unwrap()
+                execution_seq_num += 1;
+                println!("Execution: {:?}", outbound_execution_message);
             }
-
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::fix_engine::MessageConverter;
-use common::engine::{InboundEngineMessage, OutboundEngineMessage};
+use common::engine::{InboundEngineMessage, InboundMessage, OutboundEngineMessage};
 use rand::random;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -48,7 +48,7 @@ impl FixSessionState {
     }
 }
 
-pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_converter: Arc<Mutex<MessageConverter>>, inbound_engine_message_tx: Sender<InboundEngineMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<OutboundEngineMessage>>>>) {
+pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_converter: Arc<Mutex<MessageConverter>>, inbound_engine_message_tx: Sender<InboundMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<OutboundEngineMessage>>>>) {
     let (mut stream, client_addr) = connection;
     let (reader, writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);

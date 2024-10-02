@@ -6,7 +6,6 @@ use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::process::exit;
 use std::sync::mpsc::Receiver;
-use std::sync::{Arc, Mutex};
 use std::thread;
 
 fn writer(mut write_stream: TcpStream, sequenced_message_store: Receiver<String>) {
@@ -95,7 +94,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let fix_client_thread = thread::spawn(move || client_connection(receiver));
 
     println!("-----------------");
-    println!("FIX CLIENT\nBUY px qty\nSELL px qty\nQUIT px qty");
+    println!("FIX CLIENT\nBUY px qty\nSELL px qty\nPERF n_orders\nQUIT px qty");
     println!("-----------------");
 
     let quit = false;
@@ -122,8 +121,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Command::Perf(batch_size) => {
                     for _ in 0..batch_size {
                         let order_fix;
-                        let px = random::<u32>() % 100;
-                        let qty = random::<u32>() % 100;
+                        let px = (random::<u32>() % 100) + 1;
+                        let qty = (random::<u32>() % 100) + 1;
 
                         if random::<u32>() % 2 == 0 {
                             order_fix = build_buy_nos(px, qty);

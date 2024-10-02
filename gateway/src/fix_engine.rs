@@ -1,4 +1,4 @@
-use common::engine::{InboundEngineMessage, InboundMessage, Logon, NewOrder, OrderAction, OutboundEngineMessage, OutboundMessage};
+use common::engine::{InboundMessage, Logon, NewOrder, OrderAction, OutboundEngineMessage, OutboundMessage};
 use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;
 use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder};
@@ -21,7 +21,7 @@ impl MessageConverter {
             fix_encoder,
         }
     }
-    pub fn fix_to_in_msg(&mut self, fix_message_buffer: &[u8]) -> Result<InboundEngineMessage, DecodeError> {
+    pub fn fix_to_in_msg(&mut self, fix_message_buffer: &[u8]) -> Result<InboundMessage, DecodeError> {
         let fix_msg = self.fix_decoder.decode(fix_message_buffer)?;
 
         let fix_msg_type = MsgType::deserialize(fix_msg.fv(fix42::MSG_TYPE).unwrap()).unwrap();
@@ -31,21 +31,15 @@ impl MessageConverter {
                 println!("Logon");
                 let heartbeat_int: u32 = fix_msg.fv(fix42::HEART_BT_INT).unwrap();
 
-                InboundEngineMessage {
-                    seq_num: 0,
-                    inbound_message: InboundMessage::Logon(Logon {
-                        heartbeat_sec: heartbeat_int
-                    }),
-                }
+                InboundMessage::Logon(Logon {
+                    heartbeat_sec: heartbeat_int
+                })
             }
             MsgType::Logout => {
                 println!("Logout");
-                InboundEngineMessage {
-                    seq_num: 0,
-                    inbound_message: InboundMessage::Logon(Logon {
-                        heartbeat_sec: 0
-                    }),
-                }
+                InboundMessage::Logon(Logon {
+                    heartbeat_sec: 0
+                })
             }
             MsgType::OrderSingle => {
                 let fix_msg_px = fix_msg.fv::<u32>(fix44::PRICE).unwrap();
@@ -55,22 +49,16 @@ impl MessageConverter {
                 let mut order_action = OrderAction::BUY;
                 if fix_msg_side == "2" { order_action = OrderAction::SELL; }
 
-                InboundEngineMessage {
-                    seq_num: 0,
-                    inbound_message: InboundMessage::NewOrder(NewOrder {
-                        order_action,
-                        px: fix_msg_px,
-                        qty: fix_msg_qty,
-                    }),
-                }
+                InboundMessage::NewOrder(NewOrder {
+                    order_action,
+                    px: fix_msg_px,
+                    qty: fix_msg_qty,
+                })
             }
             MsgType::OrderCancelRequest => {
-                InboundEngineMessage {
-                    seq_num: 0,
-                    inbound_message: InboundMessage::Logon(Logon {
-                        heartbeat_sec: 0
-                    }),
-                }
+                InboundMessage::Logon(Logon {
+                    heartbeat_sec: 0
+                })
             }
 
             _ => {
@@ -78,7 +66,6 @@ impl MessageConverter {
             }
         };
 
-        //
         Ok(msg)
     }
 

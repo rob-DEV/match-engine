@@ -3,7 +3,7 @@ mod fix_server;
 
 use crate::fix_engine::MessageConverter;
 use crate::fix_server::on_client_connection;
-use common::engine::{InboundEngineMessage, OutboundEngineMessage};
+use common::engine::{InboundEngineMessage, InboundMessage, OutboundEngineMessage};
 use fefix::FixValue;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -24,7 +24,7 @@ lazy_static! {
 async fn main() -> Result<(), Box<dyn Error>> {
     println!("--- Initializing Gateway ---");
 
-    let (engine_msg_in_tx, engine_msg_in_rx): (Sender<InboundEngineMessage>, Receiver<InboundEngineMessage>) = mpsc::channel();
+    let (msg_in_tx, engine_msg_in_rx): (Sender<InboundMessage>, Receiver<InboundMessage>) = mpsc::channel();
     let gateway_to_engine_msg_in_tx = Arc::new(Mutex::new(HashMap::<u32, Sender<OutboundEngineMessage>>::new()));
 
     let engine_msg_in_thread = thread::spawn(|| {
@@ -37,14 +37,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     let thread_session_msg_tx_map = gateway_to_engine_msg_in_tx.clone();
-    initialize_gateway_session_handler(engine_msg_in_tx, thread_session_msg_tx_map).await.expect("failed to initialize gateway session handler");
+    initialize_gateway_session_handler(msg_in_tx, thread_session_msg_tx_map).await.expect("failed to initialize gateway session handler");
 
     engine_msg_out_thread.join().unwrap();
     engine_msg_in_thread.join().unwrap();
     Ok(())
 }
 
-async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<InboundEngineMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<OutboundEngineMessage>>>>) -> Result<(), Box<dyn Error>> {
+async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<InboundMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<OutboundEngineMessage>>>>) -> Result<(), Box<dyn Error>> {
     // Shared for now
     let message_converter = Arc::new(Mutex::new(MessageConverter::new()));
     let tcp_listener = tokio::net::TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], *GATEWAY_PORT)))
@@ -64,7 +64,7 @@ async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<In
     }
 }
 
-fn initialize_msg_in_message_submitter(rx: Receiver<InboundEngineMessage>) -> Result<(), Box<dyn Error>> {
+fn initialize_msg_in_message_submitter(rx: Receiver<InboundMessage>) -> Result<(), Box<dyn Error>> {
     use socket2::{Domain, Type};
     let udp_multicast_socket = socket2::Socket::new(Domain::IPV4, Type::DGRAM, Some(socket2::Protocol::UDP)).expect("failed to create UDP socket");
     udp_multicast_socket.set_reuse_address(true).expect("failed to set reuse address");
@@ -75,9 +75,18 @@ fn initialize_msg_in_message_submitter(rx: Receiver<InboundEngineMessage>) -> Re
 
     println!("Initialized Gateway -> MSG_IN multicast on port {}", *ENGINE_MSG_IN_PORT);
 
+    let mut in_msg_seq_num = 0;
+
     while let Ok(inbound_engine_message) = rx.recv() {
+        let inbound_engine_message = InboundEngineMessage {
+            seq_num: in_msg_seq_num,
+            inbound_message: inbound_engine_message,
+        };
+
         let encoded: Vec<u8> = bitcode::encode(&inbound_engine_message);
         udp_socket.send_to(&encoded, send_addr).expect("TODO: panic message");
+
+        in_msg_seq_num += 1;
     }
 
     Ok(())

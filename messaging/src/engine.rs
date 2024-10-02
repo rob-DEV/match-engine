@@ -44,7 +44,6 @@ pub struct CancelOrder {
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct OutboundEngineMessage {
-    pub session_id: u32,
     pub seq_num: u32,
     pub outbound_message: OutboundMessage,
 }
@@ -85,6 +84,11 @@ pub struct RejectionMessage {
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct TradeExecution {
     pub execution_id: u32,
+    pub bid_id: u32,
+    pub ask_id: u32,
+    pub fill_qty: u32,
+    pub px: u32,
+    pub execution_time: u64,
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]
