@@ -4,7 +4,7 @@ use rand::random;
 use common::engine::{OutboundEngineMessage, OutboundMessage, TradeExecution};
 use crate::domain::execution::Execution;
 use crate::domain::order::Order;
-use crate::engine::clob::CentralLimitOrderBook;
+use crate::engine::order_book::CentralLimitOrderBook;
 use crate::util::memory::uninitialized_arr;
 
 const MAX_EXECUTIONS_PER_CYCLE: usize = 1000;

@@ -67,7 +67,7 @@ impl CentralLimitOrderBook {
     pub fn check_for_trades(&mut self, max_execution_per_cycle: usize, arr: &mut [Execution]) -> usize {
         let mut executions: usize = 0;
         while let (Some(ask), Some(bid)) = (self.asks.peek(), self.bids.peek()) {
-            if executions == max_execution_per_cycle {
+            if executions == max_execution_per_cycle - 1 {
                 break;
             }
 

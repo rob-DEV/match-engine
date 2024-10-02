@@ -1,30 +1,25 @@
 use fefix::prelude::*;
 use fefix::tagvalue::{Config, Encoder};
+use rand::random;
 use std::error::Error;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::process::exit;
+use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::thread::sleep;
-use std::time::Duration;
 
-fn writer(mut write_stream: TcpStream, sequenced_message_store: Arc<Mutex<Vec<String>>>) {
+fn writer(mut write_stream: TcpStream, sequenced_message_store: Receiver<String>) {
     let mut count = 0;
-    loop {
-        let store = sequenced_message_store.lock().unwrap();
-        if store.len() > count {
-            let message = store.get(count).unwrap();
-            if write_stream.write_all(message.as_bytes()).is_err() {
-                break;
-            }
-            count += 1;
-            sleep(Duration::from_millis(500));
+    while let Ok(message) = sequenced_message_store.recv() {
+        if write_stream.write_all(message.as_bytes()).is_err() {
+            break;
         }
+        count += 1;
     }
 }
 
-fn reader(read_stream: TcpStream, sequenced_message_store: Arc<Mutex<Vec<String>>>) {
+fn reader(read_stream: TcpStream) {
     let mut buf_reader = BufReader::new(read_stream);
     let mut line = String::new();
     loop {
@@ -32,28 +27,26 @@ fn reader(read_stream: TcpStream, sequenced_message_store: Arc<Mutex<Vec<String>
         let bytes_read = buf_reader.read_line(&mut line).unwrap();
 
         if bytes_read == 0 {
-            println!("Client disconnected");
-            break;
+            println!("Client disconnected!");
+            exit(0);
         }
 
-        println!("Received: {}", line.trim());
+        println!("FIX: {}", line.trim());
     }
 }
 
-fn client_connection(sequenced_message_store: Arc<Mutex<Vec<String>>>) {
+fn client_connection(sequenced_message_store: Receiver<String>) {
     let mut tcp_stream = TcpStream::connect("127.0.0.1:3001").map_err(|e| { "Failed to connect to the gateway server" }).unwrap();
 
     let read_stream = tcp_stream.try_clone().unwrap();
     let write_stream = tcp_stream.try_clone().unwrap();
 
-    let writer_sequenced_message_store = sequenced_message_store.clone();
     let writer_thread = thread::spawn(move || {
-        writer(write_stream, writer_sequenced_message_store);
+        writer(write_stream, sequenced_message_store);
     });
 
-    let reader_sequenced_message_store = sequenced_message_store.clone();
     let reader_thread = thread::spawn(move || {
-        reader(read_stream, reader_sequenced_message_store);
+        reader(read_stream);
     });
 
     writer_thread.join().unwrap();
@@ -65,6 +58,7 @@ enum Command {
     Buy(u32, u32),
     Sell(u32, u32),
     Cancel(u32),
+    Perf(u32),
     Quit,
 }
 
@@ -87,16 +81,18 @@ fn parse(input: String) -> Result<Command, ()> {
             let order_id = tokens[1].parse::<u32>().unwrap();
             Ok(Command::Cancel(order_id))
         }
+        "perf" | "p" => {
+            let batch_size = tokens[1].parse::<u32>().unwrap();
+            Ok(Command::Perf(batch_size))
+        }
         "quit" | "q" => { Ok(Command::Quit) }
         _ => { Err(()) }
     }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let sequenced_message_store = Arc::new(Mutex::new(Vec::<String>::new()));
-
-    let sequenced_message_store_thread = sequenced_message_store.clone();
-    let fix_client_thread = std::thread::spawn(move || client_connection(sequenced_message_store_thread));
+    let (sender, receiver) = std::sync::mpsc::channel::<String>();
+    let fix_client_thread = thread::spawn(move || client_connection(receiver));
 
     println!("-----------------");
     println!("FIX CLIENT\nBUY px qty\nSELL px qty\nQUIT px qty");
@@ -110,26 +106,41 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::io::stdin().read_line(&mut line).unwrap();
 
         if let Ok(command) = parse(line.trim().to_string()) {
-            let msg;
+            let fix_message;
             match command {
                 Command::Buy(px, qty) => {
-                    msg = build_buy_nos(px, qty) + "\n";
+                    fix_message = build_buy_nos(px, qty) + "\n";
+                    sender.clone().send(fix_message.to_string() + "\n").expect("TODO: panic message");
                 }
                 Command::Sell(px, qty) => {
-                    msg = build_sell_nos(px, qty) + "\n";
+                    fix_message = build_sell_nos(px, qty) + "\n";
+                    sender.clone().send(fix_message.to_string() + "\n").expect("TODO: panic message");
                 }
                 Command::Cancel(order_id) => {
-                    msg = "8=FIX.4.4|9=122|35=F|34=0|49=CLIENT12|52=20100225-19:41:57.316|56=B|1=Marcel|11=13346|21=1|40=2|44=5|54=1|59=0|60=20100225-19:39:52.020|10=072|\n".to_string();
+                    unimplemented!();
+                }
+                Command::Perf(batch_size) => {
+                    for _ in 0..batch_size {
+                        let order_fix;
+                        let px = random::<u32>() % 100;
+                        let qty = random::<u32>() % 100;
+
+                        if random::<u32>() % 2 == 0 {
+                            order_fix = build_buy_nos(px, qty);
+                        } else {
+                            order_fix = build_sell_nos(px, qty);
+                        }
+
+                        sender.clone().send(order_fix.to_string() + "\n").expect("TODO: panic message");
+                    }
+                    fix_message = build_buy_nos(1, 1).to_string() + "\n";
                 }
                 Command::Quit => { exit(0); }
             }
-
-            sequenced_message_store.clone().lock().unwrap().push(msg);
         } else {
             println!("Not a known command!");
         }
     }
-
 
     fix_client_thread.join().unwrap();
     Ok(())

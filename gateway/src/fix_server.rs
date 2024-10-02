@@ -71,8 +71,6 @@ pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_c
                 println!("Client disconnected");
                 break;
             }
-
-            println!("Received: {}", line.trim());
         }
     });
 
