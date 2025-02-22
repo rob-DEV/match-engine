@@ -25,8 +25,10 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (engine_msg_out_tx, engine_msg_out_rx): (Sender<OutboundEngineMessage>, Receiver<OutboundEngineMessage>) = mpsc::channel();
     let (order_entry_tx, order_entry_rx): (Sender<Order>, Receiver<Order>) = mpsc::channel();
 
-    let match_engine = engine::match_engine::MatchEngine::new();
-    match_engine.run(order_entry_rx, engine_msg_out_tx);
+    let engine_thread = thread::spawn(|| {
+        let mut match_engine = engine::match_engine::MatchEngine::new();
+        match_engine.run(order_entry_rx, engine_msg_out_tx);
+    });
 
     let engine_msg_in_thread = thread::spawn(|| {
         initialize_engine_msg_in_receiver(order_entry_tx).expect("failed to initialize engine MSG_IN thread");
@@ -36,6 +38,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         initialize_engine_msg_out_submitter(engine_msg_out_rx).expect("failed to initialize engine MSG_OUT thread");
     });
 
+    engine_thread.join().unwrap();
     engine_msg_out_thread.join().unwrap();
     engine_msg_in_thread.join().unwrap();
 

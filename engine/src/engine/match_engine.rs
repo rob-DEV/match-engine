@@ -1,127 +1,148 @@
 use crate::domain::execution::Execution;
 use crate::domain::order::Order;
-use crate::engine::order_book::CentralLimitOrderBook;
+use crate::engine::order_book::LimitOrderBook;
 use crate::util::memory::uninitialized_arr;
 use crate::util::time::epoch_nanos;
 use common::engine::{CancelOrderAck, NewOrderAck, OutboundEngineMessage, OutboundMessage, TradeExecution};
-use rand::random;
 use std::sync::mpsc::Sender;
-use std::{sync::{mpsc::Receiver, Arc, Mutex}, thread};
+use std::sync::mpsc::{Receiver, TryRecvError};
 
+const MAX_ORDERS_PER_CYCLE: u32 = 2000;
 const MAX_EXECUTIONS_PER_CYCLE: usize = 2000;
+const MAX_ORDER_CYCLE_NANOS: u64 = 10000;
 
 pub struct MatchEngine {
-    book_mutex: Arc<Mutex<CentralLimitOrderBook>>,
+    book: LimitOrderBook,
 }
 
 impl MatchEngine {
     pub fn new() -> MatchEngine {
         MatchEngine {
-            book_mutex: Arc::new(Mutex::new(CentralLimitOrderBook::new()))
+            book: LimitOrderBook::new()
         }
     }
 
-    pub fn run(&self, order_rx: Receiver<Order>, engine_msg_out_tx: Sender<OutboundEngineMessage>) {
-        let book_mutex: Arc<Mutex<CentralLimitOrderBook>> = self.book_mutex.clone();
+    pub(crate) fn run(&mut self, order_tx: Receiver<Order>, engine_msg_out_tx: Sender<OutboundEngineMessage>) -> ! {
+        let order_cycle_msg_out_tx = engine_msg_out_tx.clone();
+        let match_cycle_msg_out_tx = engine_msg_out_tx.clone();
 
-        let engine_msg_out_order_entry_tx = engine_msg_out_tx.clone();
-        let _order_submission_thread_handle = thread::Builder::new()
-            .name("ORDER-ENTRY-THREAD".to_owned())
-            .spawn(move || Self::order_entry(book_mutex, order_rx, engine_msg_out_order_entry_tx));
+        let mut engine_msg_out_seq_num: u32 = 1;
 
-        let book_handle_cycle_thread = self.book_mutex.clone();
-
-        let engine_msg_out_match_cycle_tx = engine_msg_out_tx.clone();
-        let _match_thread_handle = thread::Builder::new()
-            .name("MATCH-CYCLE-THREAD".to_owned())
-            .spawn(move || Self::matching_cycle(book_handle_cycle_thread, engine_msg_out_match_cycle_tx));
-    }
-
-    fn order_entry(book_mutex: Arc<Mutex<CentralLimitOrderBook>>, order_tx: Receiver<Order>, engine_msg_out_order_entry_tx: Sender<OutboundEngineMessage>) {
-        while let Ok(order) = order_tx.recv() {
-            let mut book = book_mutex.lock().unwrap();
-            let out = match order {
-                Order::New(new_order) => {
-                    book.apply_order(new_order);
-                    OutboundEngineMessage {
-                        seq_num: 1,
-                        outbound_message: OutboundMessage::NewOrderAck(NewOrderAck {
-                            client_id: new_order.client_id,
-                            action: new_order.action,
-                            order_id: random::<u32>(),
-                            px: new_order.px,
-                            qty: new_order.qty,
-                            ack_time: epoch_nanos(),
-                        }),
-                    }
-                }
-                Order::Cancel(cancel_order) => {
-                    book.remove_order(cancel_order);
-                    OutboundEngineMessage {
-                        seq_num: 1,
-                        outbound_message: OutboundMessage::CancelOrderAck(CancelOrderAck {
-                            client_id: cancel_order.client_id,
-                            order_id: random::<u32>(),
-                            ack_time: epoch_nanos(),
-                        }),
-                    }
-                }
-            };
-
-            engine_msg_out_order_entry_tx.send(out).unwrap()
-        }
-    }
-
-    fn matching_cycle(book_handle: Arc<Mutex<CentralLimitOrderBook>>, engine_msg_out_tx: Sender<OutboundEngineMessage>) -> ! {
-        let mut executions_buf = uninitialized_arr::<Execution, MAX_EXECUTIONS_PER_CYCLE>();
-
-        let mut execution_seq_num = 0;
+        let mut order_seq_num: u32 = 1;
+        let mut execution_seq_num: u32 = 1;
 
         loop {
-            let mut book = book_handle.lock().unwrap();
-            let executions = book.check_for_trades(MAX_EXECUTIONS_PER_CYCLE, &mut executions_buf);
+            let cycle_start_epoch = epoch_nanos();
 
-            for index in 0..executions {
-                let execution = &executions_buf[index];
+            // order entry
+            (engine_msg_out_seq_num, order_seq_num) = self.order_entry_cycle(engine_msg_out_seq_num, order_seq_num, cycle_start_epoch, &order_tx, &order_cycle_msg_out_tx);
 
-                let outbound_execution_message;
-                match execution {
-                    Execution::FullMatch(full_match) => {
-                        outbound_execution_message = OutboundEngineMessage {
-                            seq_num: execution_seq_num,
-                            outbound_message: OutboundMessage::TradeExecution(TradeExecution {
-                                execution_id: full_match.id,
-                                bid_client_id: full_match.bid.client_id,
-                                bid_id: full_match.bid.id,
-                                ask_client_id: full_match.ask.client_id,
-                                ask_id: full_match.ask.id,
-                                fill_qty: full_match.bid.qty,
-                                px: full_match.bid.px,
-                                execution_time: full_match.execution_time,
-                            }),
+            // execution phase
+            (engine_msg_out_seq_num, execution_seq_num) = self.match_cycle(engine_msg_out_seq_num, execution_seq_num, &match_cycle_msg_out_tx);
+        }
+    }
+
+    fn order_entry_cycle(&mut self, mut engine_msg_out_seq_num: u32, mut order_sequence_num: u32, cycle_start_epoch: u64, order_tx: &Receiver<Order>, engine_msg_out_tx: &Sender<OutboundEngineMessage>) -> (u32, u32) {
+        let initial_order_seq_number: u32 = order_sequence_num;
+
+        while order_sequence_num - initial_order_seq_number < MAX_ORDERS_PER_CYCLE && epoch_nanos() - cycle_start_epoch < MAX_ORDER_CYCLE_NANOS {
+            let order_result = order_tx.try_recv();
+            match order_result {
+                Ok(order) => {
+                    let mut book = &mut self.book;
+                    let out = match order {
+                        Order::New(new_order) => {
+                            book.apply_order(new_order);
+                            OutboundEngineMessage {
+                                seq_num: engine_msg_out_seq_num,
+                                outbound_message: OutboundMessage::NewOrderAck(NewOrderAck {
+                                    client_id: new_order.client_id,
+                                    action: new_order.action,
+                                    order_id: order_sequence_num,
+                                    px: new_order.px,
+                                    qty: new_order.qty,
+                                    ack_time: epoch_nanos(),
+                                }),
+                            }
                         }
-                    }
-                    Execution::PartialMatch(partial_match) => {
-                        outbound_execution_message = OutboundEngineMessage {
-                            seq_num: execution_seq_num,
-                            outbound_message: OutboundMessage::TradeExecution(TradeExecution {
-                                execution_id: partial_match.id,
-                                bid_client_id: partial_match.bid.client_id,
-                                bid_id: partial_match.bid.id,
-                                ask_client_id: partial_match.ask.client_id,
-                                ask_id: partial_match.ask.id,
-                                fill_qty: partial_match.fill_qty,
-                                px: partial_match.bid.px,
-                                execution_time: partial_match.execution_time,
-                            }),
+                        Order::Cancel(cancel_order) => {
+                            book.remove_order(cancel_order);
+                            OutboundEngineMessage {
+                                seq_num: engine_msg_out_seq_num,
+                                outbound_message: OutboundMessage::CancelOrderAck(CancelOrderAck {
+                                    client_id: cancel_order.client_id,
+                                    order_id: order_sequence_num,
+                                    ack_time: epoch_nanos(),
+                                }),
+                            }
                         }
+                    };
+                    engine_msg_out_tx.send(out).unwrap();
+
+                    engine_msg_out_seq_num += 1;
+                    order_sequence_num += 1;
+                }
+                Err(err) => {
+                    match err {
+                        TryRecvError::Disconnected => { panic!("Error order recv disconnected!") }
+                        _ => {}
                     }
                 }
-
-                engine_msg_out_tx.send(outbound_execution_message).unwrap();
-
-                execution_seq_num += 1;
             }
         }
+
+        return (engine_msg_out_seq_num, order_sequence_num);
+    }
+
+    fn match_cycle(&mut self, mut engine_msg_out_seq_num: u32, mut execution_seq_num: u32, engine_msg_out_tx: &Sender<OutboundEngineMessage>) -> (u32, u32) {
+        let mut executions_buf = uninitialized_arr::<Execution, MAX_EXECUTIONS_PER_CYCLE>();
+
+        let mut book = &mut self.book;
+        let executions = book.check_for_trades(MAX_EXECUTIONS_PER_CYCLE, &mut executions_buf);
+
+        for idx in 0..executions {
+            let execution = &executions_buf[idx];
+
+            let outbound_execution_message;
+            match execution {
+                Execution::FullMatch(full_match) => {
+                    outbound_execution_message = OutboundEngineMessage {
+                        seq_num: engine_msg_out_seq_num,
+                        outbound_message: OutboundMessage::TradeExecution(TradeExecution {
+                            execution_id: full_match.id,
+                            bid_client_id: full_match.bid.client_id,
+                            bid_id: full_match.bid.id,
+                            ask_client_id: full_match.ask.client_id,
+                            ask_id: full_match.ask.id,
+                            fill_qty: full_match.bid.qty,
+                            px: full_match.bid.px,
+                            execution_time: full_match.execution_time,
+                        }),
+                    }
+                }
+                Execution::PartialMatch(partial_match) => {
+                    outbound_execution_message = OutboundEngineMessage {
+                        seq_num: engine_msg_out_seq_num,
+                        outbound_message: OutboundMessage::TradeExecution(TradeExecution {
+                            execution_id: partial_match.id,
+                            bid_client_id: partial_match.bid.client_id,
+                            bid_id: partial_match.bid.id,
+                            ask_client_id: partial_match.ask.client_id,
+                            ask_id: partial_match.ask.id,
+                            fill_qty: partial_match.fill_qty,
+                            px: partial_match.bid.px,
+                            execution_time: partial_match.execution_time,
+                        }),
+                    }
+                }
+            }
+
+            engine_msg_out_tx.send(outbound_execution_message).unwrap();
+
+            engine_msg_out_seq_num += 1;
+            execution_seq_num += 1;
+        }
+
+        return (engine_msg_out_seq_num, execution_seq_num);
     }
 }

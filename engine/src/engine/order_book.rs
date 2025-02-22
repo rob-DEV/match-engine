@@ -10,14 +10,14 @@ use crate::domain::execution::{Execution, FullMatch, PartialMatch};
 use crate::domain::order::{CancelOrder, LimitOrder};
 use crate::util::time::epoch_nanos;
 
-pub struct CentralLimitOrderBook {
+pub struct LimitOrderBook {
     asks: BinaryHeap<LimitOrder>,
     bids: BinaryHeap<LimitOrder>,
 }
 
-impl CentralLimitOrderBook {
-    pub fn new() -> CentralLimitOrderBook {
-        CentralLimitOrderBook {
+impl LimitOrderBook {
+    pub fn new() -> LimitOrderBook {
+        LimitOrderBook {
             bids: BinaryHeap::with_capacity(500_000),
             asks: BinaryHeap::with_capacity(500_000),
         }
@@ -151,7 +151,7 @@ impl CentralLimitOrderBook {
     }
 }
 
-impl Debug for CentralLimitOrderBook {
+impl Debug for LimitOrderBook {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "-------------------Order Book-------------------").unwrap();
         writeln!(
@@ -220,7 +220,7 @@ mod tests {
             placed_time: 0,
         };
 
-        let mut orderbook = CentralLimitOrderBook::new();
+        let mut orderbook = LimitOrderBook::new();
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
@@ -258,7 +258,7 @@ mod tests {
             placed_time: 0,
         };
 
-        let mut orderbook = CentralLimitOrderBook::new();
+        let mut orderbook = LimitOrderBook::new();
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         orderbook.apply_order(latter_sell_order);
@@ -289,7 +289,7 @@ mod tests {
             placed_time: 0,
         };
 
-        let mut orderbook = CentralLimitOrderBook::new();
+        let mut orderbook = LimitOrderBook::new();
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
@@ -319,7 +319,7 @@ mod tests {
             placed_time: 0,
         };
 
-        let mut orderbook = CentralLimitOrderBook::new();
+        let mut orderbook = LimitOrderBook::new();
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
@@ -349,7 +349,7 @@ mod tests {
             placed_time: 0,
         };
 
-        let mut orderbook = CentralLimitOrderBook::new();
+        let mut orderbook = LimitOrderBook::new();
         orderbook.apply_order(buy_order);
         orderbook.apply_order(sell_order);
         // When
