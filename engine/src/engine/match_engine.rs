@@ -41,7 +41,7 @@ impl MatchEngine {
         loop {
             let cycle_start_epoch = epoch_nanos();
 
-            // oe phase // 25 mics
+            // oe phase // 40 mics
             (engine_msg_out_seq_num, order_seq_num) = self.order_entry_cycle(engine_msg_out_seq_num, order_seq_num, cycle_start_epoch, &order_tx, &order_cycle_msg_out_tx);
 
             // match phase
