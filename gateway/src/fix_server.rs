@@ -41,7 +41,7 @@ impl FixClientSessionState {
     }
 }
 
-pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_converter: Arc<Mutex<MessageConverter>>, inbound_engine_message_tx: Sender<InboundMessage>, client_msg_tx_map: Arc<Mutex<HashMap<u32, Arc<Mutex<Sender<OutboundMessage>>>>>>) {
+pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_converter: Arc<Mutex<MessageConverter>>, inbound_engine_message_tx: Sender<InboundMessage>, client_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<OutboundMessage>>>>) {
     let (mut stream, client_addr) = connection;
     let (reader, writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
@@ -53,7 +53,7 @@ pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_c
 
     let ss = client_msg_tx_map.clone();
 
-    ss.lock().unwrap().insert(client_session_state.client_id, Arc::new(Mutex::new(send_tx)));
+    ss.lock().unwrap().insert(client_session_state.client_id, send_tx);
 
     let read_task = tokio::spawn(async move {
         let mut line = String::new();

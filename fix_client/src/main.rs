@@ -30,7 +30,7 @@ fn reader(read_stream: TcpStream) {
             exit(0);
         }
 
-        println!("FIX: {}", line.trim());
+        // println!("FIX: {}", line.trim());
     }
 }
 
@@ -119,8 +119,6 @@ fn main() -> Result<(), Box<dyn Error>> {
                     unimplemented!();
                 }
                 Command::Perf(batch_size) => {
-                    let sender1 = sender.clone();
-
                     for _ in 0..batch_size {
                         let order_fix;
                         let px = (random::<u32>() % 100) + 1;
@@ -132,9 +130,10 @@ fn main() -> Result<(), Box<dyn Error>> {
                             order_fix = build_sell_nos(px, qty);
                         }
 
-                        sender1.send(order_fix.to_string() + "\n").expect("TODO: panic message");
+                        sender.send(order_fix.to_string() + "\n").expect("TODO: panic message");
                     }
-                    fix_message = build_buy_nos(1, 1).to_string() + "\n";
+
+                    println!("Perf done!")
                 }
                 Command::Quit => { exit(0); }
             }

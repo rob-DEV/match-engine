@@ -6,7 +6,7 @@ use rand::random;
 
 use common::engine::OrderAction;
 
-use crate::domain::execution::{Execution, FullMatch, PartialMatch};
+use crate::domain::execution::Execution;
 use crate::domain::order::{CancelOrder, LimitOrder};
 use crate::util::time::epoch_nanos;
 
@@ -65,9 +65,9 @@ impl LimitOrderBook {
     }
 
     pub fn check_for_trades(&mut self, max_execution_per_cycle: usize, arr: &mut [Execution]) -> usize {
-        let mut executions: usize = 0;
+        let mut num_executions: usize = 0;
         while let (Some(ask), Some(bid)) = (self.asks.peek(), self.bids.peek()) {
-            if executions == max_execution_per_cycle - 1 {
+            if num_executions == max_execution_per_cycle - 1 {
                 break;
             }
 
@@ -79,8 +79,8 @@ impl LimitOrderBook {
                     self.bids.pop();
 
                     // move the execution to the outbound buffer
-                    arr[executions] = execution;
-                    executions += 1;
+                    arr[num_executions] = execution;
+                    num_executions += 1;
 
                     // add any remaining qty to the book
                     if let Some(rem) = remainder {
@@ -90,7 +90,7 @@ impl LimitOrderBook {
             }
         }
 
-        return executions;
+        return num_executions;
     }
 
     fn attempt_order_match(&self, ask: &LimitOrder, bid: &LimitOrder) -> Option<(Execution, Option<LimitOrder>)> {
@@ -107,12 +107,13 @@ impl LimitOrderBook {
         match ask.qty.cmp(&bid.qty) {
             Ordering::Equal => {
                 Some((
-                    Execution::FullMatch(FullMatch {
+                    Execution {
                         id: random::<u32>(),
+                        fill_qty: ask.qty,
                         ask: ask.clone(),
                         bid: bid.clone(),
                         execution_time: epoch_nanos(),
-                    }),
+                    },
                     None,
                 ))
             }
@@ -122,13 +123,13 @@ impl LimitOrderBook {
                 remainder.qty -= quantity;
 
                 Some((
-                    Execution::PartialMatch(PartialMatch {
+                    Execution {
                         id: random::<u32>(),
                         fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
                         execution_time: epoch_nanos(),
-                    }),
+                    },
                     Some(remainder),
                 ))
             }
@@ -137,13 +138,13 @@ impl LimitOrderBook {
                 let mut remainder = bid.clone();
                 remainder.qty -= quantity;
                 Some((
-                    Execution::PartialMatch(PartialMatch {
+                    Execution {
                         id: random::<u32>(),
                         fill_qty: quantity,
                         ask: ask.clone(),
                         bid: bid.clone(),
                         execution_time: epoch_nanos(),
-                    }),
+                    },
                     Some(remainder),
                 ))
             }
@@ -205,6 +206,7 @@ mod tests {
     fn like_for_like_price_match() {
         // Given
         let buy_order = LimitOrder {
+            client_id: 0,
             id: 1,
             action: OrderAction::BUY,
             px: 1,
@@ -213,6 +215,7 @@ mod tests {
         };
 
         let sell_order = LimitOrder {
+            client_id: 0,
             id: 1,
             action: OrderAction::SELL,
             px: 1,
@@ -235,6 +238,7 @@ mod tests {
     fn fifo_like_for_like_match() {
         // Given
         let buy_order = LimitOrder {
+            client_id: 0,
             id: 1,
             action: OrderAction::BUY,
             px: 1,
@@ -243,6 +247,7 @@ mod tests {
         };
 
         let sell_order = LimitOrder {
+            client_id: 0,
             id: 2,
             action: OrderAction::SELL,
             px: 1,
@@ -251,6 +256,7 @@ mod tests {
         };
 
         let latter_sell_order = LimitOrder {
+            client_id: 0,
             id: 3,
             action: OrderAction::SELL,
             px: 1,
@@ -274,6 +280,7 @@ mod tests {
     fn buy_order_qty_remaining_on_book() {
         // Given
         let buy_order = LimitOrder {
+            client_id: 0,
             id: 1,
             action: OrderAction::BUY,
             px: 1,
@@ -282,6 +289,7 @@ mod tests {
         };
 
         let sell_order = LimitOrder {
+            client_id: 0,
             id: 1,
             action: OrderAction::SELL,
             px: 1,
@@ -304,6 +312,7 @@ mod tests {
     fn sell_order_qty_remaining_on_book() {
         // Given
         let buy_order = LimitOrder {
+            client_id: 0,
             id: 1,
             action: OrderAction::BUY,
             px: 1,
@@ -312,6 +321,7 @@ mod tests {
         };
 
         let sell_order = LimitOrder {
+            client_id: 0,
             id: 1,
             action: OrderAction::SELL,
             px: 1,
@@ -334,6 +344,7 @@ mod tests {
     fn sell_order_cancel_removes_order_from_book() {
         // Given
         let buy_order = LimitOrder {
+            client_id: 0,
             id: 1,
             action: OrderAction::BUY,
             px: 1,
@@ -342,6 +353,7 @@ mod tests {
         };
 
         let sell_order = LimitOrder {
+            client_id: 0,
             id: 1,
             action: OrderAction::SELL,
             px: 1,
@@ -354,6 +366,7 @@ mod tests {
         orderbook.apply_order(sell_order);
         // When
         let cancel_order = CancelOrder {
+            client_id: 0,
             id: 1,
             action: OrderAction::SELL,
         };

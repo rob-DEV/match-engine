@@ -26,7 +26,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (order_entry_tx, order_entry_rx): (Sender<Order>, Receiver<Order>) = mpsc::channel();
 
     let engine_thread = thread::spawn(|| {
-        let mut match_engine = engine::match_engine::MatchEngine::new();
+        let mut match_engine = engine::match_engine::MatchEngine::new("APPL".to_owned());
         match_engine.run(order_entry_rx, engine_msg_out_tx);
     });
 
@@ -99,6 +99,7 @@ fn initialize_engine_msg_out_submitter(rx: Receiver<OutboundEngineMessage>) -> R
 
     while let Ok(outbound_engine_message) = rx.recv() {
         let encoded: Vec<u8> = bitcode::encode(&outbound_engine_message);
+        // println!("PUSHING {:?}", outbound_engine_message.outbound_message);
         udp_socket.send_to(&encoded, send_addr).expect("TODO: panic message");
     }
     Ok(())
