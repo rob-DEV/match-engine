@@ -2,23 +2,9 @@ use bitcode::{Decode, Encode};
 
 // Common
 #[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
-pub enum OrderAction {
+pub enum Side {
     BUY,
     SELL,
-}
-// Inbound
-#[derive(Encode, Decode, PartialEq, Debug)]
-pub struct InboundEngineMessage {
-    pub seq_num: u32,
-    pub inbound_message: InboundMessage,
-}
-
-#[derive(Encode, Decode, PartialEq, Debug)]
-pub enum InboundMessage {
-    Logon(Logon),
-    LogOut(Logout),
-    NewOrder(NewOrder),
-    CancelOrder(CancelOrder),
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]
@@ -32,7 +18,7 @@ pub struct Logout {}
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct NewOrder {
     pub client_id: u32,
-    pub order_action: OrderAction,
+    pub order_action: Side,
     pub px: u32,
     pub qty: u32,
 }
@@ -40,33 +26,21 @@ pub struct NewOrder {
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct CancelOrder {
     pub client_id: u32,
-    pub order_action: OrderAction,
+    pub order_action: Side,
     pub order_id: u32,
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]
-pub struct OutboundEngineMessage {
-    pub seq_num: u32,
-    pub outbound_message: OutboundMessage,
+pub struct Ack {
+    pub client_id: u32,
+    pub order_action: Side,
+    pub order_id: u32,
 }
-
-// Outbound
-#[derive(Encode, Decode, PartialEq, Debug)]
-pub enum OutboundMessage {
-    NewOrderAck(NewOrderAck),
-    CancelOrderAck(CancelOrderAck),
-    RejectionMessage(RejectionMessage),
-
-    TradeExecution(TradeExecution),
-
-    EngineError(EngineError),
-}
-
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct NewOrderAck {
     pub client_id: u32,
-    pub action: OrderAction,
+    pub action: Side,
     pub order_id: u32,
     pub px: u32,
     pub qty: u32,

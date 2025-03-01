@@ -1,5 +1,4 @@
 use crate::fix_engine::MessageConverter;
-use common::engine::{InboundMessage, OutboundMessage};
 use rand::random;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -9,6 +8,7 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::Interval;
+use common::transport::{EngineMessage, GatewayMessage, InboundEngineMessage};
 
 struct FixClientSessionState {
     client_id: u32,
@@ -41,7 +41,7 @@ impl FixClientSessionState {
     }
 }
 
-pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_converter: Arc<Mutex<MessageConverter>>, inbound_engine_message_tx: Sender<InboundMessage>, client_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<OutboundMessage>>>>) {
+pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_converter: Arc<Mutex<MessageConverter>>, inbound_engine_message_tx: Sender<GatewayMessage>, client_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>) {
     let (mut stream, client_addr) = connection;
     let (reader, writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
@@ -49,7 +49,7 @@ pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_c
 
     let client_session_state = FixClientSessionState::new(client_addr);
 
-    let (send_tx, mut receiver_rx): (Sender<OutboundMessage>, Receiver<OutboundMessage>) = mpsc::channel();
+    let (send_tx, mut receiver_rx): (Sender<EngineMessage>, Receiver<EngineMessage>) = mpsc::channel();
 
     let ss = client_msg_tx_map.clone();
 

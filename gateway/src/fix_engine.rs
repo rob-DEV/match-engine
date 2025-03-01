@@ -1,7 +1,8 @@
-use common::engine::{InboundMessage, Logon, NewOrder, OrderAction, OutboundEngineMessage, OutboundMessage};
+use common::messaging::{Logon, NewOrder, Side};
 use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;
 use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder};
+use common::transport::{EngineMessage, GatewayMessage};
 
 pub struct MessageConverter {
     fix_decoder: Decoder<>,
@@ -21,7 +22,7 @@ impl MessageConverter {
             fix_encoder,
         }
     }
-    pub fn fix_to_in_msg(&mut self, client_id: u32, fix_message_buffer: &[u8]) -> Result<InboundMessage, DecodeError> {
+    pub fn fix_to_in_msg(&mut self, client_id: u32, fix_message_buffer: &[u8]) -> Result<GatewayMessage, DecodeError> {
         let fix_msg = self.fix_decoder.decode(fix_message_buffer)?;
 
         let fix_msg_type = MsgType::deserialize(fix_msg.fv(fix42::MSG_TYPE).unwrap()).unwrap();
@@ -31,13 +32,13 @@ impl MessageConverter {
                 println!("Logon");
                 let heartbeat_int: u32 = fix_msg.fv(fix42::HEART_BT_INT).unwrap();
 
-                InboundMessage::Logon(Logon {
+                GatewayMessage::Logon(Logon {
                     heartbeat_sec: heartbeat_int
                 })
             }
             MsgType::Logout => {
                 println!("Logout");
-                InboundMessage::Logon(Logon {
+                GatewayMessage::Logon(Logon {
                     heartbeat_sec: 0
                 })
             }
@@ -46,10 +47,10 @@ impl MessageConverter {
                 let fix_msg_qty = fix_msg.fv::<u32>(fix44::ORDER_QTY).unwrap();
                 let fix_msg_side = fix_msg.fv::<&str>(fix44::SIDE).unwrap();
 
-                let mut order_action = OrderAction::BUY;
-                if fix_msg_side == "2" { order_action = OrderAction::SELL; }
+                let mut order_action = Side::BUY;
+                if fix_msg_side == "2" { order_action = Side::SELL; }
 
-                InboundMessage::NewOrder(NewOrder {
+                GatewayMessage::NewOrder(NewOrder {
                     client_id,
                     order_action,
                     px: fix_msg_px,
@@ -57,7 +58,7 @@ impl MessageConverter {
                 })
             }
             MsgType::OrderCancelRequest => {
-                InboundMessage::Logon(Logon {
+                GatewayMessage::Logon(Logon {
                     heartbeat_sec: 0
                 })
             }
@@ -70,18 +71,18 @@ impl MessageConverter {
         Ok(msg)
     }
 
-    pub fn engine_msg_out_to_fix(&mut self, engine_msg_out: OutboundEngineMessage) -> Vec<u8> {
+    pub fn engine_msg_out_to_fix(&mut self, engine_msg_out: EngineMessage) -> Vec<u8> {
         let mut out_buffer = vec![0; 2048];
 
-        match engine_msg_out.outbound_message {
-            OutboundMessage::NewOrderAck(_) => {
+        match engine_msg_out {
+            EngineMessage::NewOrderAck(_) => {
                 let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"ExecutionReport");
             }
-            OutboundMessage::RejectionMessage(_) => {
+            EngineMessage::RejectionMessage(_) => {
                 let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
                 out_fix.set(fix44::SESSION_REJECT_REASON, 7)
             }
-            OutboundMessage::EngineError(_) => {
+            EngineMessage::EngineError(_) => {
                 let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
                 out_fix.set(fix44::SESSION_REJECT_REASON, 99)
             }

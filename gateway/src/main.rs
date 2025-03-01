@@ -3,7 +3,9 @@ mod fix_server;
 
 use crate::fix_engine::MessageConverter;
 use crate::fix_server::on_client_connection;
-use common::engine::{InboundEngineMessage, InboundMessage, OutboundEngineMessage, OutboundMessage, TradeExecution};
+use common::drain::rx_drain_with_timeout;
+use common::messaging::TradeExecution;
+use common::transport::{EngineMessage, GatewayMessage, InboundEngineMessage, OutboundEngineMessage};
 use fefix::FixValue;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -24,11 +26,12 @@ lazy_static! {
 async fn main() -> Result<(), Box<dyn Error>> {
     println!("--- Initializing Gateway ---");
 
-    let (msg_in_tx, engine_msg_in_rx): (Sender<InboundMessage>, Receiver<InboundMessage>) = mpsc::channel();
-    let gateway_to_engine_msg_in_tx = Arc::new(Mutex::new(HashMap::<u32, Sender<OutboundMessage>>::new()));
+    let (client_msg_tx, client_msg_rx): (Sender<GatewayMessage>, Receiver<GatewayMessage>) = mpsc::channel();
+    let (msg_in_tx, engine_msg_in_rx): (Sender<InboundEngineMessage>, Receiver<InboundEngineMessage>) = mpsc::channel();
+    let gateway_to_engine_msg_in_tx = Arc::new(Mutex::new(HashMap::<u32, Sender<EngineMessage>>::new()));
 
     let engine_msg_in_thread = thread::spawn(|| {
-        initialize_msg_in_message_submitter(engine_msg_in_rx).expect("failed to initialize engine MSG_IN thread");
+        initialize_msg_in_message_submitter(client_msg_rx).expect("failed to initialize engine MSG_IN thread");
     });
 
     let thread_session_msg_tx_map = gateway_to_engine_msg_in_tx.clone();
@@ -37,14 +40,14 @@ async fn main() -> Result<(), Box<dyn Error>> {
     });
 
     let thread_session_msg_tx_map = gateway_to_engine_msg_in_tx.clone();
-    initialize_gateway_session_handler(msg_in_tx, thread_session_msg_tx_map).await.expect("failed to initialize gateway session handler");
+    initialize_gateway_session_handler(client_msg_tx, thread_session_msg_tx_map).await.expect("failed to initialize gateway session handler");
 
     engine_msg_out_thread.join().unwrap();
     engine_msg_in_thread.join().unwrap();
     Ok(())
 }
 
-async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<InboundMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<OutboundMessage>>>>) -> Result<(), Box<dyn Error>> {
+async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<GatewayMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>) -> Result<(), Box<dyn Error>> {
     // Shared for now
     let message_converter = Arc::new(Mutex::new(MessageConverter::new()));
     let tcp_listener = tokio::net::TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], *GATEWAY_PORT)))
@@ -64,7 +67,7 @@ async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<In
     }
 }
 
-fn initialize_msg_in_message_submitter(rx: Receiver<InboundMessage>) -> Result<(), Box<dyn Error>> {
+fn initialize_msg_in_message_submitter(rx: Receiver<GatewayMessage>) -> Result<(), Box<dyn Error>> {
     use socket2::{Domain, Type};
     let udp_multicast_socket = socket2::Socket::new(Domain::IPV4, Type::DGRAM, Some(socket2::Protocol::UDP)).expect("failed to create UDP socket");
     udp_multicast_socket.set_reuse_address(true).expect("failed to set reuse address");
@@ -72,27 +75,34 @@ fn initialize_msg_in_message_submitter(rx: Receiver<InboundMessage>) -> Result<(
 
     let udp_socket = std::net::UdpSocket::from(udp_multicast_socket);
     let send_addr = "0.0.0.0:3000".parse::<SocketAddr>().unwrap();
-
     println!("Initialized Gateway -> MSG_IN multicast on port {}", *ENGINE_MSG_IN_PORT);
 
-    let mut in_msg_seq_num = 0;
+    let mut msg_buff = Vec::<InboundEngineMessage>::with_capacity(128);
 
-    while let Ok(inbound_engine_message) = rx.recv() {
-        let inbound_engine_message = InboundEngineMessage {
-            seq_num: in_msg_seq_num,
-            inbound_message: inbound_engine_message,
-        };
+    loop {
+        let drained = rx_drain_with_timeout::<GatewayMessage, InboundEngineMessage>(&rx, &mut msg_buff, |msg| {
+            match msg {
+                GatewayMessage::Logon(_) => !unimplemented!(),
+                GatewayMessage::LogOut(_) => !unimplemented!(),
+                GatewayMessage::NewOrder(new_order) => {
+                    InboundEngineMessage {
+                        sequence_number: 0,
+                        message: EngineMessage::NewOrder(new_order),
+                    }
+                }
+            }
+        }, 5000);
 
-        let encoded: Vec<u8> = bitcode::encode(&inbound_engine_message);
-        udp_socket.send_to(&encoded, send_addr).expect("TODO: panic message");
-
-        in_msg_seq_num += 1;
+        if drained > 0 {
+            println!("Order batch {}", msg_buff.len());
+            let encoded: Vec<u8> = bitcode::encode(&msg_buff);
+            udp_socket.send_to(&encoded, send_addr).expect("TODO: panic message");
+            msg_buff.clear();
+        }
     }
-
-    Ok(())
 }
 
-fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Sender<OutboundMessage>>>>) -> Result<(), Box<dyn Error>> {
+fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>) -> Result<(), Box<dyn Error>> {
     use socket2::{Domain, Type};
     let udp_multicast_socket = socket2::Socket::new(Domain::IPV4, Type::DGRAM, Some(socket2::Protocol::UDP)).expect("failed to create UDP socket");
     udp_multicast_socket.set_reuse_address(true).expect("failed to set reuse address");
@@ -101,7 +111,7 @@ fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Se
 
     let udp_socket = std::net::UdpSocket::from(udp_multicast_socket);
 
-    let mut buffer = [0; 64000];
+    let mut buffer = [0; 32768];
 
     println!("Initialized MSG_OUT -> Gateway multicast on port {}", *ENGINE_MSG_OUT_PORT);
 
@@ -111,21 +121,21 @@ fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Se
                 let outbound_engine_message: OutboundEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
                 // println!("MSG_OUT {:?}", outbound_engine_message);
 
-                let outbound_message_type = &outbound_engine_message.outbound_message;
+                let outbound_message_type = &outbound_engine_message.message;
 
-                let mut lock = session_data_tx.lock().unwrap();
+                let mut session_data = session_data_tx.lock().unwrap();
                 match outbound_message_type {
-                    OutboundMessage::NewOrderAck(a) => {
+                    EngineMessage::NewOrderAck(a) => {
                         let client_id = a.client_id;
 
-                        let session_state = lock.get_mut(&client_id).unwrap();
-                        session_state.send(outbound_engine_message.outbound_message).unwrap()
+                        let session_state = session_data.get_mut(&client_id).unwrap();
+                        session_state.send(outbound_engine_message.message).unwrap()
                     }
-                    OutboundMessage::TradeExecution(execution) => {
+                    EngineMessage::TradeExecution(execution) => {
                         let bid_client_id = execution.bid_client_id;
                         let ask_client_id = execution.ask_client_id;
 
-                        let ask_exec = OutboundMessage::TradeExecution(TradeExecution {
+                        let ask_exec = EngineMessage::TradeExecution(TradeExecution {
                             trade_id: execution.trade_id,
                             trade_seq: execution.trade_seq,
                             bid_client_id: execution.bid_client_id,
@@ -137,10 +147,10 @@ fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Se
                             execution_time: execution.execution_time,
                         });
 
-                        let bid_tx = lock.get(&bid_client_id).unwrap();
-                        bid_tx.send(outbound_engine_message.outbound_message).unwrap();
+                        let bid_tx = session_data.get(&bid_client_id).unwrap();
+                        bid_tx.send(outbound_engine_message.message).unwrap();
 
-                        let ask_tx = lock.get(&ask_client_id).unwrap();
+                        let ask_tx = session_data.get(&ask_client_id).unwrap();
                         ask_tx.send(ask_exec).unwrap();
                     }
                     _ => { unimplemented!() }
@@ -149,6 +159,7 @@ fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Se
             Err(_) => {}
         }
     }
+
     Ok(())
 }
 

@@ -2,13 +2,12 @@ use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use std::fmt::{Debug, Formatter};
 
+use crate::book::book::Book;
+use crate::internal::execution::Execution;
+use crate::internal::order::{CancelOrder, LimitOrder};
+use common::time::epoch_nanos;
+use common::messaging::Side;
 use rand::random;
-
-use common::engine::OrderAction;
-
-use crate::domain::execution::Execution;
-use crate::domain::order::{CancelOrder, LimitOrder};
-use crate::util::time::epoch_nanos;
 
 pub struct LimitOrderBook {
     asks: BinaryHeap<LimitOrder>,
@@ -16,87 +15,17 @@ pub struct LimitOrderBook {
 }
 
 impl LimitOrderBook {
-    pub fn new() -> LimitOrderBook {
-        LimitOrderBook {
-            bids: BinaryHeap::with_capacity(500_000),
-            asks: BinaryHeap::with_capacity(500_000),
+    pub fn new() -> Self {
+        Self {
+            bids: BinaryHeap::with_capacity(50_000_000),
+            asks: BinaryHeap::with_capacity(50_000_000),
         }
-    }
-
-    pub fn apply_order(&mut self, order: LimitOrder) {
-        match order.action {
-            OrderAction::BUY => {
-                self.bids.push(order);
-            }
-            OrderAction::SELL => {
-                self.asks.push(order);
-            }
-        };
-    }
-
-    pub fn remove_order(&mut self, order: CancelOrder) {
-        match order.action {
-            OrderAction::BUY => {
-                let mut px = 0;
-                let mut qty = 0;
-                for it in self.bids.iter() {
-                    if it.id == order.id {
-                        px = it.px;
-                        qty = it.qty;
-                        break;
-                    }
-                }
-
-                self.bids.retain(|x| x.id != order.id);
-            }
-            OrderAction::SELL => {
-                let mut px = 0;
-                let mut qty = 0;
-                for it in self.asks.iter() {
-                    if it.id == order.id {
-                        px = it.px;
-                        qty = it.qty;
-                        break;
-                    }
-                }
-                self.asks.retain(|x| x.id != order.id);
-            }
-        };
-    }
-
-    pub fn check_for_trades(&mut self, max_execution_per_cycle: usize, arr: &mut [Execution]) -> usize {
-        let mut num_executions: usize = 0;
-        while let (Some(ask), Some(bid)) = (self.asks.peek(), self.bids.peek()) {
-            if num_executions == max_execution_per_cycle - 1 {
-                break;
-            }
-
-            match self.attempt_order_match(ask, bid) {
-                None => break,
-                Some((execution, remainder)) => {
-                    // remove the match (any remainder is re-added
-                    self.asks.pop();
-                    self.bids.pop();
-
-                    // move the execution to the outbound buffer
-                    arr[num_executions] = execution;
-                    num_executions += 1;
-
-                    // add any remaining qty to the book
-                    if let Some(rem) = remainder {
-                        self.apply_order(rem);
-                    }
-                }
-            }
-        }
-
-        return num_executions;
     }
 
     fn attempt_order_match(&self, ask: &LimitOrder, bid: &LimitOrder) -> Option<(Execution, Option<LimitOrder>)> {
         let (ask, bid) = match (ask.action, bid.action) {
-            (OrderAction::BUY, OrderAction::SELL) => (bid, ask),
-            (OrderAction::SELL, OrderAction::BUY) => (ask, bid),
+            (Side::BUY, Side::SELL) => (bid, ask),
+            (Side::SELL, Side::BUY) => (ask, bid),
             (_, _) => return None,
         };
 
@@ -149,6 +78,80 @@ impl LimitOrderBook {
                 ))
             }
         }
+    }
+}
+
+impl Book for LimitOrderBook {
+    fn apply(&mut self, order: LimitOrder) {
+        match order.action {
+            Side::BUY => {
+                self.bids.push(order);
+            }
+            Side::SELL => {
+                self.asks.push(order);
+            }
+        };
+    }
+
+    fn check_for_trades(&mut self, max_execution_per_cycle: usize, arr: &mut [Execution]) -> usize {
+        let mut num_executions: usize = 0;
+        while let (Some(ask), Some(bid)) = (self.asks.peek(), self.bids.peek()) {
+            if num_executions == max_execution_per_cycle - 1 {
+                break;
+            }
+
+            match self.attempt_order_match(ask, bid) {
+                None => break,
+                Some((execution, remainder)) => {
+                    // remove the match (any remainder is re-added
+                    self.asks.pop();
+                    self.bids.pop();
+
+                    // move the execution to the outbound buffer
+                    arr[num_executions] = execution;
+                    num_executions += 1;
+
+                    // add any remaining qty to the book
+                    if let Some(rem) = remainder {
+                        self.apply(rem);
+                    }
+                }
+            }
+        }
+
+        num_executions
+    }
+
+    fn cancel(&mut self, order: CancelOrder) -> bool {
+        match order.action {
+            Side::BUY => {
+                let mut px = 0;
+                let mut qty = 0;
+                for it in self.bids.iter() {
+                    if it.id == order.id {
+                        px = it.px;
+                        qty = it.qty;
+                        break;
+                    }
+                }
+
+                self.bids.retain(|x| x.id != order.id);
+            }
+            Side::SELL => {
+                let mut px = 0;
+                let mut qty = 0;
+                for it in self.asks.iter() {
+                    if it.id == order.id {
+                        px = it.px;
+                        qty = it.qty;
+                        break;
+                    }
+                }
+                self.asks.retain(|x| x.id != order.id);
+            }
+        };
+
+        return true;
     }
 }
 
@@ -208,7 +211,7 @@ mod tests {
         let buy_order = LimitOrder {
             client_id: 0,
             id: 1,
-            action: OrderAction::BUY,
+            action: Side::BUY,
             px: 1,
             qty: 10,
             placed_time: 0,
@@ -217,15 +220,15 @@ mod tests {
         let sell_order = LimitOrder {
             client_id: 0,
             id: 1,
-            action: OrderAction::SELL,
+            action: Side::SELL,
             px: 1,
             qty: 10,
             placed_time: 0,
         };
 
         let mut orderbook = LimitOrderBook::new();
-        orderbook.apply_order(buy_order);
-        orderbook.apply_order(sell_order);
+        orderbook.apply(buy_order);
+        orderbook.apply(sell_order);
         // When
         let mut executions_buffer: [Execution; 10] = uninitialized_arr();
 
@@ -240,7 +243,7 @@ mod tests {
         let buy_order = LimitOrder {
             client_id: 0,
             id: 1,
-            action: OrderAction::BUY,
+            action: Side::BUY,
             px: 1,
             qty: 10,
             placed_time: 0,
@@ -249,7 +252,7 @@ mod tests {
         let sell_order = LimitOrder {
             client_id: 0,
             id: 2,
-            action: OrderAction::SELL,
+            action: Side::SELL,
             px: 1,
             qty: 10,
             placed_time: 0,
@@ -258,16 +261,16 @@ mod tests {
         let latter_sell_order = LimitOrder {
             client_id: 0,
             id: 3,
-            action: OrderAction::SELL,
+            action: Side::SELL,
             px: 1,
             qty: 10,
             placed_time: 0,
         };
 
         let mut orderbook = LimitOrderBook::new();
-        orderbook.apply_order(buy_order);
-        orderbook.apply_order(sell_order);
-        orderbook.apply_order(latter_sell_order);
+        orderbook.apply(buy_order);
+        orderbook.apply(sell_order);
+        orderbook.apply(latter_sell_order);
         // When
         let mut executions_buffer: [Execution; 10] = uninitialized_arr();
         orderbook.check_for_trades(10, &mut executions_buffer);
@@ -282,7 +285,7 @@ mod tests {
         let buy_order = LimitOrder {
             client_id: 0,
             id: 1,
-            action: OrderAction::BUY,
+            action: Side::BUY,
             px: 1,
             qty: 10,
             placed_time: 0,
@@ -291,15 +294,15 @@ mod tests {
         let sell_order = LimitOrder {
             client_id: 0,
             id: 1,
-            action: OrderAction::SELL,
+            action: Side::SELL,
             px: 1,
             qty: 6,
             placed_time: 0,
         };
 
         let mut orderbook = LimitOrderBook::new();
-        orderbook.apply_order(buy_order);
-        orderbook.apply_order(sell_order);
+        orderbook.apply(buy_order);
+        orderbook.apply(sell_order);
         // When
         let mut executions_buffer: [Execution; 10] = uninitialized_arr();
         orderbook.check_for_trades(10, &mut executions_buffer);
@@ -314,7 +317,7 @@ mod tests {
         let buy_order = LimitOrder {
             client_id: 0,
             id: 1,
-            action: OrderAction::BUY,
+            action: Side::BUY,
             px: 1,
             qty: 4,
             placed_time: 0,
@@ -323,15 +326,15 @@ mod tests {
         let sell_order = LimitOrder {
             client_id: 0,
             id: 1,
-            action: OrderAction::SELL,
+            action: Side::SELL,
             px: 1,
             qty: 10,
             placed_time: 0,
         };
 
         let mut orderbook = LimitOrderBook::new();
-        orderbook.apply_order(buy_order);
-        orderbook.apply_order(sell_order);
+        orderbook.apply(buy_order);
+        orderbook.apply(sell_order);
         // When
         let mut executions_buffer: [Execution; 10] = uninitialized_arr();
         orderbook.check_for_trades(10, &mut executions_buffer);
@@ -346,7 +349,7 @@ mod tests {
         let buy_order = LimitOrder {
             client_id: 0,
             id: 1,
-            action: OrderAction::BUY,
+            action: Side::BUY,
             px: 1,
             qty: 4,
             placed_time: 0,
@@ -355,22 +358,22 @@ mod tests {
         let sell_order = LimitOrder {
             client_id: 0,
             id: 1,
-            action: OrderAction::SELL,
+            action: Side::SELL,
             px: 1,
             qty: 10,
             placed_time: 0,
         };
 
         let mut orderbook = LimitOrderBook::new();
-        orderbook.apply_order(buy_order);
-        orderbook.apply_order(sell_order);
+        orderbook.apply(buy_order);
+        orderbook.apply(sell_order);
         // When
         let cancel_order = CancelOrder {
             client_id: 0,
             id: 1,
-            action: OrderAction::SELL,
+            action: Side::SELL,
         };
-        orderbook.remove_order(cancel_order);
+        orderbook.cancel(cancel_order);
 
         let mut executions_buffer: [Execution; 10] = uninitialized_arr();
         orderbook.check_for_trades(10, &mut executions_buffer);

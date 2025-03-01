@@ -1,0 +1,7 @@
+{
+  "symbol": "APPL",
+  "isin": "APPL123",
+  "ENGINE_MSG_IN_PORT": 3000,
+  "ENGINE_MSG_OUT_PORT": 3500,
+  "GATEWAY_FIX_PORT": 3001
+}

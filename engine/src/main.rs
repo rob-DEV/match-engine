@@ -1,6 +1,7 @@
-use crate::domain::order::{CancelOrder, LimitOrder, Order};
-use crate::util::time::epoch_nanos;
-use common::engine::{InboundEngineMessage, InboundMessage, OutboundEngineMessage};
+use crate::config::config::load_engine_config;
+use crate::internal::order::{CancelOrder, LimitOrder, Order};
+use common::multicast::multicast_udp_socket;
+use common::time::{epoch_nanos, wait_50_millis};
 use lazy_static::lazy_static;
 use rand::random;
 use std::error::Error;
@@ -8,31 +9,38 @@ use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::{env, thread};
+use common::transport::{EngineMessage, InboundEngineMessage, OutboundEngineMessage};
 
 mod engine;
-mod domain;
+mod internal;
 mod util;
+mod config;
+mod book;
 
 lazy_static! {
     pub static ref ENGINE_MSG_IN_PORT: u16 = env::var("ENGINE_PORT").unwrap_or("3000".to_owned()).parse::<u16>().unwrap();
     pub static ref ENGINE_MSG_OUT_PORT: u16 = env::var("ENGINE_PORT").unwrap_or("3500".to_owned()).parse::<u16>().unwrap();
 }
 
-
 fn main() -> Result<(), Box<dyn Error>> {
     println!("--- Initializing Match Engine ---");
+    let config = load_engine_config();
 
     let (engine_msg_out_tx, engine_msg_out_rx): (Sender<OutboundEngineMessage>, Receiver<OutboundEngineMessage>) = mpsc::channel();
     let (order_entry_tx, order_entry_rx): (Sender<Order>, Receiver<Order>) = mpsc::channel();
 
-    let engine_thread = thread::spawn(|| {
-        let mut match_engine = engine::match_engine::MatchEngine::new("APPL".to_owned());
+    let engine_thread = thread::spawn(move || {
+        let mut match_engine = engine::match_engine::MatchEngine::new(config.get("symbol").unwrap().to_owned(), config.get("isin").unwrap().to_owned());
         match_engine.run(order_entry_rx, engine_msg_out_tx);
     });
+
+    wait_50_millis();
 
     let engine_msg_in_thread = thread::spawn(|| {
         initialize_engine_msg_in_receiver(order_entry_tx).expect("failed to initialize engine MSG_IN thread");
     });
+
+    wait_50_millis();
 
     let engine_msg_out_thread = thread::spawn(|| {
         initialize_engine_msg_out_submitter(engine_msg_out_rx).expect("failed to initialize engine MSG_OUT thread");
@@ -53,34 +61,36 @@ fn initialize_engine_msg_in_receiver(order_entry_tx: Sender<Order>) -> Result<()
     udp_multicast_socket.bind(&SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, *ENGINE_MSG_IN_PORT).into()).unwrap();
 
     let udp_socket = std::net::UdpSocket::from(udp_multicast_socket);
-    let mut buffer = [0; 1024];
+    let send_addr = "0.0.0.0:3000".parse::<SocketAddr>().unwrap();
+    let mut buffer = [0; 32768];
 
     println!("Initialized Engine MSG_IN multicast on port {}", *ENGINE_MSG_IN_PORT);
 
     loop {
         let (size, addr) = udp_socket.recv_from(&mut buffer).unwrap();
-        let inbound_engine_message: InboundEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
-
-        match inbound_engine_message.inbound_message {
-            InboundMessage::NewOrder(new) => {
-                order_entry_tx.send(Order::New(LimitOrder {
-                    client_id: new.client_id,
-                    id: random::<u32>(),
-                    action: new.order_action,
-                    px: new.px,
-                    qty: new.qty,
-                    placed_time: epoch_nanos(),
-                })).unwrap()
-            }
-            InboundMessage::CancelOrder(cancel) => {
-                order_entry_tx.send(Order::Cancel(CancelOrder {
-                    client_id: cancel.client_id,
-                    action: cancel.order_action,
-                    id: cancel.order_id,
-                })).unwrap()
-            }
-            _ => {
-                unimplemented!()
+        let inbound_engine_message: Vec<InboundEngineMessage> = bitcode::decode(&buffer[..size]).unwrap();
+        for msg_in in inbound_engine_message {
+            match msg_in.message {
+                EngineMessage::NewOrder(new) => {
+                    order_entry_tx.send(Order::New(LimitOrder {
+                        client_id: new.client_id,
+                        id: random::<u32>(),
+                        action: new.order_action,
+                        px: new.px,
+                        qty: new.qty,
+                        placed_time: epoch_nanos(),
+                    })).unwrap()
+                }
+                EngineMessage::CancelOrder(cancel) => {
+                    order_entry_tx.send(Order::Cancel(CancelOrder {
+                        client_id: cancel.client_id,
+                        action: cancel.order_action,
+                        id: cancel.order_id,
+                    })).unwrap()
+                }
+                _ => {
+                    unimplemented!()
+                }
             }
         }
     }
