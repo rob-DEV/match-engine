@@ -1,8 +1,9 @@
-use common::messaging::{Logon, NewOrder, Side};
+use crate::message::GatewayMessage;
+use common::domain::domain::{CancelOrder, NewOrder, Side};
+use common::domain::messaging::EngineMessage;
 use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;
 use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder};
-use common::transport::{EngineMessage, GatewayMessage};
 
 pub struct MessageConverter {
     fix_decoder: Decoder<>,
@@ -28,20 +29,6 @@ impl MessageConverter {
         let fix_msg_type = MsgType::deserialize(fix_msg.fv(fix42::MSG_TYPE).unwrap()).unwrap();
 
         let msg = match fix_msg_type {
-            MsgType::Logon => {
-                println!("Logon");
-                let heartbeat_int: u32 = fix_msg.fv(fix42::HEART_BT_INT).unwrap();
-
-                GatewayMessage::Logon(Logon {
-                    heartbeat_sec: heartbeat_int
-                })
-            }
-            MsgType::Logout => {
-                println!("Logout");
-                GatewayMessage::Logon(Logon {
-                    heartbeat_sec: 0
-                })
-            }
             MsgType::OrderSingle => {
                 let fix_msg_px = fix_msg.fv::<u32>(fix44::PRICE).unwrap();
                 let fix_msg_qty = fix_msg.fv::<u32>(fix44::ORDER_QTY).unwrap();
@@ -50,7 +37,7 @@ impl MessageConverter {
                 let mut order_action = Side::BUY;
                 if fix_msg_side == "2" { order_action = Side::SELL; }
 
-                GatewayMessage::NewOrder(NewOrder {
+                GatewayMessage::LimitOrder(NewOrder {
                     client_id,
                     order_action,
                     px: fix_msg_px,
@@ -58,8 +45,16 @@ impl MessageConverter {
                 })
             }
             MsgType::OrderCancelRequest => {
-                GatewayMessage::Logon(Logon {
-                    heartbeat_sec: 0
+                let fix_msg_side = fix_msg.fv::<&str>(fix44::SIDE).unwrap();
+                let fix_msg_order_id = fix_msg.fv::<u32>(fix44::ORDER_ID).unwrap();
+
+                let mut order_action = Side::BUY;
+                if fix_msg_side == "2" { order_action = Side::SELL; }
+
+                GatewayMessage::CancelOrder(CancelOrder {
+                    client_id,
+                    order_action,
+                    order_id: fix_msg_order_id,
                 })
             }
 

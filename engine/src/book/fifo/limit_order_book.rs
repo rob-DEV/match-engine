@@ -5,8 +5,8 @@ use std::fmt::{Debug, Formatter};
 use crate::book::book::Book;
 use crate::internal::execution::Execution;
 use crate::internal::order::{CancelOrder, LimitOrder};
-use common::time::epoch_nanos;
-use common::messaging::Side;
+use common::domain::domain::Side;
+use common::util::time::epoch_nanos;
 use rand::random;
 
 pub struct LimitOrderBook {
@@ -118,40 +118,19 @@ impl Book for LimitOrderBook {
                 }
             }
         }
-
         num_executions
     }
 
     fn cancel(&mut self, order: CancelOrder) -> bool {
         match order.action {
-            Side::BUY => {
-                let mut px = 0;
-                let mut qty = 0;
-                for it in self.bids.iter() {
-                    if it.id == order.id {
-                        px = it.px;
-                        qty = it.qty;
-                        break;
-                    }
-                }
-
-                self.bids.retain(|x| x.id != order.id);
-            }
-            Side::SELL => {
-                let mut px = 0;
-                let mut qty = 0;
-                for it in self.asks.iter() {
-                    if it.id == order.id {
-                        px = it.px;
-                        qty = it.qty;
-                        break;
-                    }
-                }
-                self.asks.retain(|x| x.id != order.id);
-            }
+            Side::BUY => self.bids.retain(|x| x.id != order.id),
+            Side::SELL => self.asks.retain(|x| x.id != order.id)
         };
+        true
+    }
 
-        return true;
+    fn count_resting_orders(&mut self) -> usize {
+        self.asks.len() + self.bids.len()
     }
 }
 
@@ -201,7 +180,7 @@ impl Debug for LimitOrderBook {
 
 #[cfg(test)]
 mod tests {
-    use crate::util::memory::uninitialized_arr;
+    use crate::memory::memory::uninitialized_arr;
 
     use super::*;
 

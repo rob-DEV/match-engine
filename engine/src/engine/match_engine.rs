@@ -1,26 +1,26 @@
 use crate::book::book::Book;
-use crate::book::limit_order_book::LimitOrderBook;
+use crate::book::fifo::opt_limit_order_book::OptLimitOrderBook;
 use crate::internal::execution::Execution;
 use crate::internal::order::Order;
-use crate::util::memory::uninitialized_arr;
-use common::messaging::{CancelOrderAck, NewOrderAck, TradeExecution};
-use common::time::epoch_nanos;
-use common::transport::{EngineMessage, OutboundEngineMessage};
+use crate::memory::memory::uninitialized_arr;
+use common::domain::domain::{CancelOrderAck, NewOrderAck, TradeExecution};
+use common::domain::messaging::{EngineMessage, OutboundEngineMessage};
+use common::util::time::epoch_nanos;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
-const MAX_EXECUTIONS_PER_CYCLE: usize = 2000;
+pub const MAX_EXECUTIONS_PER_CYCLE: usize = 2000;
 const MAX_ORDER_CYCLE_NANOS: u64 = 40000;
 
 pub struct MatchEngine {
     symbol: String,
     isin: String,
-    book: LimitOrderBook,
+    book: OptLimitOrderBook,
 }
 
 impl MatchEngine {
     pub fn new(symbol: String, isin: String) -> Self {
-        let mut book = LimitOrderBook::new();
+        let mut book = OptLimitOrderBook::new();
 
         println!("--- Initializing engine instance for {symbol} ({isin}) ---");
         Self {
@@ -54,7 +54,7 @@ impl MatchEngine {
 
             if epoch_nanos() - timer_epoch > 1000 * 1000 * 1000 {
                 let nanos = epoch_nanos();
-                println!("nanos: {} ord: {} exe: {}", nanos - cycle_start_epoch, order_seq_num - timer_ord, execution_seq_num - timer_exe);
+                println!("nanos: {} ord: {} exe: {} book: {}", nanos - cycle_start_epoch, order_seq_num - timer_ord, execution_seq_num - timer_exe, self.book.count_resting_orders());
                 timer_epoch = nanos;
                 timer_ord = order_seq_num;
                 timer_exe = execution_seq_num;
@@ -75,7 +75,7 @@ impl MatchEngine {
                             message: EngineMessage::NewOrderAck(NewOrderAck {
                                 client_id: new_order.client_id,
                                 action: new_order.action,
-                                order_id: order_seq_num,
+                                order_id: new_order.id,
                                 px: new_order.px,
                                 qty: new_order.qty,
                                 ack_time: epoch_nanos(),
@@ -83,12 +83,13 @@ impl MatchEngine {
                         }
                     }
                     Order::Cancel(cancel_order) => {
-                        book.cancel(cancel_order);
+                        let found = book.cancel(cancel_order);
                         OutboundEngineMessage {
                             sequence_number: engine_msg_out_seq_num,
                             message: EngineMessage::CancelOrderAck(CancelOrderAck {
                                 client_id: cancel_order.client_id,
-                                order_id: order_seq_num,
+                                order_id: cancel_order.id,
+                                found,
                                 ack_time: epoch_nanos(),
                             }),
                         }

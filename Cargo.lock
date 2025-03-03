@@ -94,25 +94,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "api"
-version = "0.1.0"
-dependencies = [
- "axum",
- "bitcode",
- "common",
- "fefix",
- "lazy_static",
- "minstant",
- "rand 0.8.5",
- "serde",
- "serde_json",
- "shlex",
- "skytable",
- "socket2",
- "tokio",
-]
-
-[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -378,6 +359,7 @@ name = "common"
 version = "0.1.0"
 dependencies = [
  "bitcode",
+ "config",
  "lazy_static",
  "minstant",
  "serde",
@@ -598,7 +580,6 @@ version = "0.1.0"
 dependencies = [
  "bitcode",
  "common",
- "config",
  "lazy_static",
  "rand 0.8.5",
  "socket2",
@@ -675,17 +656,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
-]
-
-[[package]]
-name = "fix_client"
-version = "0.1.0"
-dependencies = [
- "clap",
- "fefix",
- "rand 0.9.0",
- "shlex",
- "tokio",
 ]
 
 [[package]]
@@ -828,6 +798,25 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
+]
+
+[[package]]
+name = "gateway"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "bitcode",
+ "common",
+ "fefix",
+ "lazy_static",
+ "minstant",
+ "rand 0.8.5",
+ "serde",
+ "serde_json",
+ "shlex",
+ "skytable",
+ "socket2",
+ "tokio",
 ]
 
 [[package]]
@@ -1455,6 +1444,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62948e14d923ea95ea2c7c86c71013138b66525b86bdc08d2dcc262bdb497b87"
 dependencies = [
  "memchr",
+]
+
+[[package]]
+name = "oe_client"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "fefix",
+ "rand 0.9.0",
+ "shlex",
+ "tokio",
 ]
 
 [[package]]

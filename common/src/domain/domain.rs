@@ -1,19 +1,10 @@
 use bitcode::{Decode, Encode};
 
-// Common
 #[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
 pub enum Side {
     BUY,
     SELL,
 }
-
-#[derive(Encode, Decode, PartialEq, Debug)]
-pub struct Logon {
-    pub heartbeat_sec: u32,
-}
-
-#[derive(Encode, Decode, PartialEq, Debug)]
-pub struct Logout {}
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct NewOrder {
@@ -51,6 +42,7 @@ pub struct NewOrderAck {
 pub struct CancelOrderAck {
     pub client_id: u32,
     pub order_id: u32,
+    pub found: bool,
     pub ack_time: u64,
 }
 

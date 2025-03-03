@@ -1,4 +1,4 @@
-use crate::time::epoch_nanos;
+use crate::util::time::epoch_nanos;
 use std::sync::mpsc::Receiver;
 
 pub fn rx_drain_with_timeout<T, U>(rx: &Receiver<T>, pre_allocated_buffer: &mut Vec<U>, mapper: fn(T) -> U, timeout_nanos: u64) -> usize {

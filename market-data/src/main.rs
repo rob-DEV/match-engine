@@ -1,4 +1,4 @@
-use common::messaging::{OutboundEngineMessage, OutboundMessage};
+use common::domain::{OutboundEngineMessage, OutboundMessage};
 use lazy_static::lazy_static;
 use std::net::{Ipv4Addr, SocketAddrV4};
 

@@ -1,11 +1,13 @@
-mod fix_engine;
-mod fix_server;
+mod parser;
+mod client_state;
+mod message;
 
-use crate::fix_engine::MessageConverter;
-use crate::fix_server::on_client_connection;
+use crate::client_state::on_client_connection;
+use crate::message::GatewayMessage;
+use crate::parser::MessageConverter;
+use common::domain::domain::TradeExecution;
+use common::domain::messaging::{EngineMessage, InboundEngineMessage, OutboundEngineMessage};
 use common::drain::rx_drain_with_timeout;
-use common::messaging::TradeExecution;
-use common::transport::{EngineMessage, GatewayMessage, InboundEngineMessage, OutboundEngineMessage};
 use fefix::FixValue;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -82,19 +84,26 @@ fn initialize_msg_in_message_submitter(rx: Receiver<GatewayMessage>) -> Result<(
     loop {
         let drained = rx_drain_with_timeout::<GatewayMessage, InboundEngineMessage>(&rx, &mut msg_buff, |msg| {
             match msg {
-                GatewayMessage::Logon(_) => !unimplemented!(),
-                GatewayMessage::LogOut(_) => !unimplemented!(),
-                GatewayMessage::NewOrder(new_order) => {
+                GatewayMessage::LimitOrder(new) => {
                     InboundEngineMessage {
                         sequence_number: 0,
-                        message: EngineMessage::NewOrder(new_order),
+                        message: EngineMessage::NewOrder(new),
+                    }
+                }
+                GatewayMessage::MarketOrder(_) => {
+                    unimplemented!()
+                }
+                GatewayMessage::CancelOrder(cancel) => {
+                    InboundEngineMessage {
+                        sequence_number: 0,
+                        message: EngineMessage::CancelOrder(cancel),
                     }
                 }
             }
-        }, 5000);
+        }, 1000);
 
         if drained > 0 {
-            println!("Order batch {}", msg_buff.len());
+            // println!("Order batch {}", msg_buff.len());
             let encoded: Vec<u8> = bitcode::encode(&msg_buff);
             udp_socket.send_to(&encoded, send_addr).expect("TODO: panic message");
             msg_buff.clear();
@@ -119,15 +128,19 @@ fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Se
         match udp_socket.recv_from(&mut buffer) {
             Ok((size, _)) => {
                 let outbound_engine_message: OutboundEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
-                // println!("MSG_OUT {:?}", outbound_engine_message);
 
                 let outbound_message_type = &outbound_engine_message.message;
 
                 let mut session_data = session_data_tx.lock().unwrap();
                 match outbound_message_type {
-                    EngineMessage::NewOrderAck(a) => {
-                        let client_id = a.client_id;
+                    EngineMessage::NewOrderAck(new_ack) => {
+                        let client_id = new_ack.client_id;
 
+                        let session_state = session_data.get_mut(&client_id).unwrap();
+                        session_state.send(outbound_engine_message.message).unwrap()
+                    }
+                    EngineMessage::CancelOrderAck(cancel_ack) => {
+                        let client_id = cancel_ack.client_id;
                         let session_state = session_data.get_mut(&client_id).unwrap();
                         session_state.send(outbound_engine_message.message).unwrap()
                     }

@@ -1,4 +1,5 @@
-use crate::fix_engine::MessageConverter;
+use crate::parser::MessageConverter;
+use common::domain::messaging::{EngineMessage};
 use rand::random;
 use std::collections::HashMap;
 use std::net::SocketAddr;
@@ -8,9 +9,9 @@ use std::time::Duration;
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::time::Interval;
-use common::transport::{EngineMessage, GatewayMessage, InboundEngineMessage};
+use crate::message::GatewayMessage;
 
-struct FixClientSessionState {
+struct ClientSessionState {
     client_id: u32,
     session_ip: SocketAddr,
     heartbeat_interval: Interval,
@@ -24,11 +25,11 @@ struct FixClientSessionState {
     messages: Vec<String>,
 }
 
-impl FixClientSessionState {
-    pub fn new(addr: SocketAddr) -> FixClientSessionState {
+impl ClientSessionState {
+    pub fn new(addr: SocketAddr) -> ClientSessionState {
         let client_id = random::<u32>();
 
-        FixClientSessionState {
+        ClientSessionState {
             client_id,
             session_ip: addr,
             heartbeat_interval: tokio::time::interval(Duration::from_millis(300)),
@@ -47,7 +48,7 @@ pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_c
     let mut buf_reader = BufReader::new(reader);
     let mut writer = writer;
 
-    let client_session_state = FixClientSessionState::new(client_addr);
+    let client_session_state = ClientSessionState::new(client_addr);
 
     let (send_tx, mut receiver_rx): (Sender<EngineMessage>, Receiver<EngineMessage>) = mpsc::channel();
 

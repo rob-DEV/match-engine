@@ -13,6 +13,6 @@ pub fn epoch_nanos() -> u64 {
 }
 
 #[inline(always)]
-pub fn wait_50_millis() {
+pub fn wait_50_milli() {
     sleep(Duration::from_millis(50));
 }

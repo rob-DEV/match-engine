@@ -16,99 +16,54 @@ Start the Matching Engine & API
 
 ```
  cargo run --release --bin engine
- cargo run --release --bin api
+ cargo run --release --bin gateway
+ cargo run --release --bin oe_client
 ```
 
 1. The engine runs on port `3000` by default.
-1. The engine api runs on port `3001` by default.
+1. The engine gateway runs on port `3001` by default.
 1. The engines order book is empty on start up.
 
 ### Order Entry
 
-Orders can be submitted via a `POST` request to the API.
+Orders can be submitted via the oe_client
 
 ```
-curl --location 'http://localhost:3000/order' \
---header 'Content-Type: application/json' \
---data '{
-    "NewOrder": {
-        "action": "BUY",
-        "px": 50,
-        "qty": 1000
-    }
-}'
+OE CLIENT
+BUY px qty
+SELL px qty
+PERF n_orders
+QUIT px qty
 ```
 
-The engine will ACK new Orders.
+The engine will ACK new orders & report executions (both sides get an execution & the oe_client can currently self
+match).
 
 ```
-{
-    "NewOrderAck": {
-        "ack_time": 1706441585242165679,
-        "action": "BUY",
-        "id": 451748013,
-        "px": 50,
-        "qty": 100
-    }
-}
+Enter input:
+b 30 30
+Enter input:
+Response: NewOrderAck(NewOrderAck { client_id: 492777011, action: BUY, order_id: 580547781, px: 30, qty: 30, ack_time: 1741038358998959369 })
+s 30 30
+Enter input:
+Response: NewOrderAck(NewOrderAck { client_id: 492777011, action: SELL, order_id: 3939795387, px: 30, qty: 30, ack_time: 1741038362923362442 })
+Response: TradeExecution(TradeExecution { trade_id: 2669498913, trade_seq: 1, bid_client_id: 492777011, ask_client_id: 492777011, bid_order_id: 580547781, ask_order_id: 3939795387, fill_qty: 30, px: 30, execution_time: 1741038362923374924 })
+Response: TradeExecution(TradeExecution { trade_id: 2669498913, trade_seq: 1, bid_client_id: 492777011, ask_client_id: 492777011, bid_order_id: 580547781, ask_order_id: 3939795387, fill_qty: 30, px: 30, execution_time: 1741038362923374924 })
 ```
 
-### Requesting Market Data
-
-Market data can be requested from the engine in two forms `FullSnapshot` and `TopOfBook`
+The OE Client can also perform perf (client logging is turned off during perf runs)
 
 ```
-curl --location 'http://localhost:3000/md' \
---header 'Content-Type: application/json' \
---data '{
-    "MarketDataRequest": {
-        "snapshot_type": "FullSnapshot"
-    }
-}'
-```
+Client:
+Enter input:
+p 1000000
+Perf done!
 
-The engine will provide the latest market data, currently there is no state persistence.
-
-```
-{
-    "MarketDataResponse": {
-        "FullSnapshot": {
-            "asks": [
-                {
-                    "px": 529,
-                    "qty": 1058
-                },
-                {
-                    "px": 527,
-                    "qty": 1054
-                },
-                {
-                    "px": 526,
-                    "qty": 2104
-                },
-                {
-                    "px": 524,
-                    "qty": 1048
-                }
-            ],
-            "bids": [
-                {
-                    "px": 509,
-                    "qty": 509
-                },
-                {
-                    "px": 495,
-                    "qty": 495
-                },
-                {
-                    "px": 466,
-                    "qty": 3728
-                }
-            ],
-            "snapshot_type": "FullSnapshot"
-        }
-    }
-}
+Engine logs:
+nanos: 345 ord: 186104 exe: 140087 book: 152942
+nanos: 218 ord: 178412 exe: 134083 book: 195824
+nanos: 147 ord: 184255 exe: 138146 book: 240448
+nanos: 146 ord: 1582   exe: 1198   book: 240823
 ```
 
 ## Building
