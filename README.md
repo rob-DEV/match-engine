@@ -4,9 +4,10 @@ Experimental trade matching engine written in Rust.
 
 ## Features
 
-- Tokio RT Match Engine Gateway
-- Order Entry / Market Data API
-- API -> Engine Messaging System
+- Match Engine Gateway
+- Gateway -> Engine Messaging System (Multicast)
+- FIFO Order matching
+- Order Entry Test Client
 
 ## Usage
 
