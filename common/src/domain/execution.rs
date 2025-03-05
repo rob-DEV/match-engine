@@ -1,6 +1,6 @@
 use std::fmt::{Debug, Formatter};
 
-use crate::internal::order::LimitOrder;
+use crate::domain::order::LimitOrder;
 
 pub struct Execution {
     pub id: u32,

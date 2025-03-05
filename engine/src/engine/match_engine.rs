@@ -1,10 +1,10 @@
 use crate::book::book::Book;
 use crate::book::fifo::opt_limit_order_book::OptLimitOrderBook;
-use crate::internal::execution::Execution;
-use crate::internal::order::Order;
-use crate::memory::memory::uninitialized_arr;
+use common::domain::execution::Execution;
+use common::domain::order::Order;
+use common::memory::memory::uninitialized_arr;
 use common::domain::domain::{CancelOrderAck, NewOrderAck, TradeExecution};
-use common::domain::messaging::{EngineMessage, OutboundEngineMessage};
+use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
 use common::util::time::epoch_nanos;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -30,7 +30,7 @@ impl MatchEngine {
         }
     }
 
-    pub fn run(&mut self, order_tx: Receiver<Order>, engine_msg_out_tx: Sender<OutboundEngineMessage>) -> ! {
+    pub fn run(&mut self, order_tx: Receiver<Order>, engine_msg_out_tx: Sender<SequencedEngineMessage>) -> ! {
         let order_cycle_msg_out_tx = engine_msg_out_tx.clone();
         let match_cycle_msg_out_tx = engine_msg_out_tx.clone();
 
@@ -62,7 +62,7 @@ impl MatchEngine {
         }
     }
 
-    fn order_entry_cycle(&mut self, mut engine_msg_out_seq_num: u32, mut order_seq_num: u32, order_tx: &Receiver<Order>, engine_msg_out_tx: &Sender<OutboundEngineMessage>) -> (u32, u32) {
+    fn order_entry_cycle(&mut self, mut engine_msg_out_seq_num: u32, mut order_seq_num: u32, order_tx: &Receiver<Order>, engine_msg_out_tx: &Sender<SequencedEngineMessage>) -> (u32, u32) {
         let order_result = order_tx.try_recv();
         match order_result {
             Ok(order) => {
@@ -70,7 +70,7 @@ impl MatchEngine {
                 let out = match order {
                     Order::New(new_order) => {
                         book.apply(new_order);
-                        OutboundEngineMessage {
+                        SequencedEngineMessage {
                             sequence_number: engine_msg_out_seq_num,
                             message: EngineMessage::NewOrderAck(NewOrderAck {
                                 client_id: new_order.client_id,
@@ -84,7 +84,7 @@ impl MatchEngine {
                     }
                     Order::Cancel(cancel_order) => {
                         let found = book.cancel(cancel_order);
-                        OutboundEngineMessage {
+                        SequencedEngineMessage {
                             sequence_number: engine_msg_out_seq_num,
                             message: EngineMessage::CancelOrderAck(CancelOrderAck {
                                 client_id: cancel_order.client_id,
@@ -110,7 +110,7 @@ impl MatchEngine {
         return (engine_msg_out_seq_num, order_seq_num);
     }
 
-    fn match_cycle(&mut self, mut engine_msg_out_seq_num: u32, mut execution_seq_num: u32, engine_msg_out_tx: &Sender<OutboundEngineMessage>) -> (u32, u32) {
+    fn match_cycle(&mut self, mut engine_msg_out_seq_num: u32, mut execution_seq_num: u32, engine_msg_out_tx: &Sender<SequencedEngineMessage>) -> (u32, u32) {
         let mut executions_buf = uninitialized_arr::<Execution, MAX_EXECUTIONS_PER_CYCLE>();
 
         let num_executions = self.book.check_for_trades(MAX_EXECUTIONS_PER_CYCLE, &mut executions_buf);
@@ -119,7 +119,7 @@ impl MatchEngine {
             let execution = &executions_buf[idx];
 
             let outbound_execution_message;
-            outbound_execution_message = OutboundEngineMessage {
+            outbound_execution_message = SequencedEngineMessage {
                 sequence_number: engine_msg_out_seq_num,
                 message: EngineMessage::TradeExecution(TradeExecution {
                     trade_seq: execution_seq_num,

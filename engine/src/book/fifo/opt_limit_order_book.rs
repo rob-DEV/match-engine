@@ -1,6 +1,6 @@
 use crate::book::book::Book;
-use crate::internal::execution::Execution;
-use crate::internal::order::{CancelOrder, LimitOrder};
+use common::domain::execution::Execution;
+use common::domain::order::{CancelOrder, LimitOrder};
 use common::domain::domain::Side;
 use common::util::time::epoch_nanos;
 use rand::random;

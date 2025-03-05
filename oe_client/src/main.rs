@@ -32,9 +32,9 @@ fn reader(read_stream: TcpStream) {
             exit(0);
         }
 
-        if SHOULD_LOG.load(std::sync::atomic::Ordering::Relaxed) {
-            println!("Response: {}", line.trim());
-        }
+        // if SHOULD_LOG.load(std::sync::atomic::Ordering::Relaxed) {
+        //     // println!("Response: {}", line.trim());
+        // }
     }
 }
 

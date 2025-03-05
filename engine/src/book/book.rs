@@ -1,5 +1,5 @@
-use crate::internal::execution::Execution;
-use crate::internal::order::{CancelOrder, LimitOrder};
+use common::domain::execution::Execution;
+use common::domain::order::{CancelOrder, LimitOrder};
 
 pub trait Book {
     fn apply(&mut self, order: LimitOrder);

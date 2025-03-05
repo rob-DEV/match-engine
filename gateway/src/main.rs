@@ -6,8 +6,7 @@ use crate::client_state::on_client_connection;
 use crate::message::GatewayMessage;
 use crate::parser::MessageConverter;
 use common::domain::domain::TradeExecution;
-use common::domain::messaging::{EngineMessage, InboundEngineMessage, OutboundEngineMessage};
-use common::drain::rx_drain_with_timeout;
+use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
 use fefix::FixValue;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
@@ -17,6 +16,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::{env, thread};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use common::network::udp_socket::multicast_udp_socket;
 
 lazy_static! {
     pub static ref GATEWAY_PORT: u16 = env::var("GATEWAY_PORT").unwrap_or("3001".to_owned()).parse::<u16>().unwrap();
@@ -29,7 +29,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     println!("--- Initializing Gateway ---");
 
     let (client_msg_tx, client_msg_rx): (Sender<GatewayMessage>, Receiver<GatewayMessage>) = mpsc::channel();
-    let (msg_in_tx, engine_msg_in_rx): (Sender<InboundEngineMessage>, Receiver<InboundEngineMessage>) = mpsc::channel();
+    let (msg_in_tx, engine_msg_in_rx): (Sender<SequencedEngineMessage>, Receiver<SequencedEngineMessage>) = mpsc::channel();
     let gateway_to_engine_msg_in_tx = Arc::new(Mutex::new(HashMap::<u32, Sender<EngineMessage>>::new()));
 
     let engine_msg_in_thread = thread::spawn(|| {
@@ -70,23 +70,17 @@ async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<Ga
 }
 
 fn initialize_msg_in_message_submitter(rx: Receiver<GatewayMessage>) -> Result<(), Box<dyn Error>> {
-    use socket2::{Domain, Type};
-    let udp_multicast_socket = socket2::Socket::new(Domain::IPV4, Type::DGRAM, Some(socket2::Protocol::UDP)).expect("failed to create UDP socket");
-    udp_multicast_socket.set_reuse_address(true).expect("failed to set reuse address");
-    udp_multicast_socket.set_reuse_port(true).expect("failed to set reuse port");
-
-    let udp_socket = std::net::UdpSocket::from(udp_multicast_socket);
+    let udp_socket = multicast_udp_socket(*ENGINE_MSG_IN_PORT, false);
     let send_addr = "0.0.0.0:3000".parse::<SocketAddr>().unwrap();
     println!("Initialized Gateway -> MSG_IN multicast on port {}", *ENGINE_MSG_IN_PORT);
 
-    let mut msg_buff = Vec::<InboundEngineMessage>::with_capacity(128);
-
+    let mut sequence = 1;
     loop {
-        let drained = rx_drain_with_timeout::<GatewayMessage, InboundEngineMessage>(&rx, &mut msg_buff, |msg| {
-            match msg {
+        while let Ok(inbound_engine_message) = rx.recv() {
+            let message_in = match inbound_engine_message {
                 GatewayMessage::LimitOrder(new) => {
-                    InboundEngineMessage {
-                        sequence_number: 0,
+                    SequencedEngineMessage {
+                        sequence_number: sequence,
                         message: EngineMessage::NewOrder(new),
                     }
                 }
@@ -94,40 +88,36 @@ fn initialize_msg_in_message_submitter(rx: Receiver<GatewayMessage>) -> Result<(
                     unimplemented!()
                 }
                 GatewayMessage::CancelOrder(cancel) => {
-                    InboundEngineMessage {
-                        sequence_number: 0,
+                    SequencedEngineMessage {
+                        sequence_number: sequence,
                         message: EngineMessage::CancelOrder(cancel),
                     }
                 }
-            }
-        }, 1000);
-
-        if drained > 0 {
-            // println!("Order batch {}", msg_buff.len());
-            let encoded: Vec<u8> = bitcode::encode(&msg_buff);
+            };
+            let encoded: Vec<u8> = bitcode::encode(&message_in);
             udp_socket.send_to(&encoded, send_addr).expect("TODO: panic message");
-            msg_buff.clear();
-        }
+
+            let mut ack_bits = [0u8; 4];
+            udp_socket.recv_from(&mut ack_bits).expect("TODO: panic message");
+
+            let id: u32 = u32::from_le_bytes([ack_bits[0], ack_bits[1], ack_bits[2], ack_bits[3]]);
+            assert_eq!(id, sequence);
+
+            sequence += 1;
+        };
     }
 }
 
 fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>) -> Result<(), Box<dyn Error>> {
-    use socket2::{Domain, Type};
-    let udp_multicast_socket = socket2::Socket::new(Domain::IPV4, Type::DGRAM, Some(socket2::Protocol::UDP)).expect("failed to create UDP socket");
-    udp_multicast_socket.set_reuse_address(true).expect("failed to set reuse address");
-    udp_multicast_socket.set_reuse_port(true).expect("failed to set reuse port");
-    udp_multicast_socket.bind(&SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, *ENGINE_MSG_OUT_PORT).into()).expect("failed to bind UDP socket");
-
-    let udp_socket = std::net::UdpSocket::from(udp_multicast_socket);
-
-    let mut buffer = [0; 32768];
+    let udp_socket = multicast_udp_socket(*ENGINE_MSG_OUT_PORT, true);
+    let mut buffer = [0; 4096];
 
     println!("Initialized MSG_OUT -> Gateway multicast on port {}", *ENGINE_MSG_OUT_PORT);
 
     loop {
         match udp_socket.recv_from(&mut buffer) {
             Ok((size, _)) => {
-                let outbound_engine_message: OutboundEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
+                let outbound_engine_message: SequencedEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
 
                 let outbound_message_type = &outbound_engine_message.message;
 

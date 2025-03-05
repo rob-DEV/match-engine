@@ -15,7 +15,7 @@ fn main() {
 
     let udp_socket = std::net::UdpSocket::from(udp_multicast_socket);
 
-    let mut buffer = [0; 60000];
+    let mut buffer = [0; 128];
 
     println!("Initialized MSG_OUT -> Gateway multicast on port {}", *ENGINE_MSG_OUT_PORT);
 

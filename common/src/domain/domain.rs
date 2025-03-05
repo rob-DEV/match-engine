@@ -22,13 +22,6 @@ pub struct CancelOrder {
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]
-pub struct Ack {
-    pub client_id: u32,
-    pub order_action: Side,
-    pub order_id: u32,
-}
-
-#[derive(Encode, Decode, PartialEq, Debug)]
 pub struct NewOrderAck {
     pub client_id: u32,
     pub action: Side,

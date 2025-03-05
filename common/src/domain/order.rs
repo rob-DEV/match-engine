@@ -1,4 +1,4 @@
-use common::domain::domain::Side;
+use crate::domain::domain::Side;
 use std::cmp::Ordering;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
