@@ -7,16 +7,16 @@ use crate::message::GatewayMessage;
 use crate::parser::MessageConverter;
 use common::domain::domain::TradeExecution;
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
+use common::network::udp_socket::multicast_udp_socket;
 use fefix::FixValue;
 use lazy_static::lazy_static;
 use std::collections::HashMap;
 use std::error::Error;
-use std::net::{Ipv4Addr, SocketAddr, SocketAddrV4};
+use std::net::SocketAddr;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc, Mutex};
 use std::{env, thread};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use common::network::udp_socket::multicast_udp_socket;
 
 lazy_static! {
     pub static ref GATEWAY_PORT: u16 = env::var("GATEWAY_PORT").unwrap_or("3001".to_owned()).parse::<u16>().unwrap();
@@ -77,8 +77,24 @@ fn initialize_msg_in_message_submitter(rx: Receiver<GatewayMessage>) -> Result<(
     let mut sequence = 1;
     loop {
         while let Ok(inbound_engine_message) = rx.recv() {
+            // let mut r = Vec::new();
+
             let message_in = match inbound_engine_message {
                 GatewayMessage::LimitOrder(new) => {
+                    // let s = random::<u8>();
+                    // let sc = random::<u32>();
+                    // let sx = random::<u32>();
+                    //
+                    // for i in 0..1 {
+                    //     r.push(NewOrder {
+                    //         client_id: new.client_id,
+                    //         order_action: if s % 2 == 0 { BUY } else { SELL },
+                    //         px: sc % 100,
+                    //         qty: sx % 10,
+                    //         timestamp: epoch_nanos(),
+                    //     })
+                    // }
+
                     SequencedEngineMessage {
                         sequence_number: sequence,
                         message: EngineMessage::NewOrder(new),
@@ -110,7 +126,7 @@ fn initialize_msg_in_message_submitter(rx: Receiver<GatewayMessage>) -> Result<(
 
 fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>) -> Result<(), Box<dyn Error>> {
     let udp_socket = multicast_udp_socket(*ENGINE_MSG_OUT_PORT, true);
-    let mut buffer = [0; 4096];
+    let mut buffer = [0; 256];
 
     println!("Initialized MSG_OUT -> Gateway multicast on port {}", *ENGINE_MSG_OUT_PORT);
 

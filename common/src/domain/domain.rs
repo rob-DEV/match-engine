@@ -12,6 +12,7 @@ pub struct NewOrder {
     pub order_action: Side,
     pub px: u32,
     pub qty: u32,
+    pub timestamp: u64
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]

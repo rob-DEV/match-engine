@@ -17,6 +17,7 @@ pub struct Acknowledgement {
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub enum EngineMessage {
     NewOrder(NewOrder),
+    NewOrderBatch(Vec<NewOrder>),
     NewOrderAck(NewOrderAck),
     CancelOrder(CancelOrder),
     CancelOrderAck(CancelOrderAck),
