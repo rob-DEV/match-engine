@@ -14,7 +14,7 @@ pub fn initialize_engine_msg_in_thread(order_entry_tx: Sender<Order>) -> ! {
 }
 
 fn multicast_receiver_to_engine_msg_in(mut udp_socket: &UdpSocket, mut oe_tx: &Sender<Order>) -> ! {
-    let mut buffer = [0; 1024];
+    let mut buffer = [0; 256];
 
     let mut last_seen_seq = 0;
     loop {
@@ -32,7 +32,6 @@ fn multicast_receiver_to_engine_msg_in(mut udp_socket: &UdpSocket, mut oe_tx: &S
 
         match inbound_engine_message.message {
             EngineMessage::NewOrder(new) => {
-                println!("Delta {}", epoch_nanos() - new.timestamp);
                 oe_tx.send(Order::New(LimitOrder {
                     client_id: new.client_id,
                     id: random::<u32>(),
@@ -44,7 +43,6 @@ fn multicast_receiver_to_engine_msg_in(mut udp_socket: &UdpSocket, mut oe_tx: &S
             }
             EngineMessage::NewOrderBatch(new) => {
                 for i in &new {
-                    println!("Delta {}", epoch_nanos() - i.timestamp);
                     oe_tx.send(Order::New(LimitOrder {
                         client_id: i.client_id,
                         id: random::<u32>(),

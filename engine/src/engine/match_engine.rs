@@ -10,7 +10,6 @@ use std::sync::mpsc::Sender;
 use std::sync::mpsc::{Receiver, TryRecvError};
 
 pub const MAX_EXECUTIONS_PER_CYCLE: usize = 2000;
-const MAX_ORDER_CYCLE_NANOS: u64 = 40000;
 
 pub struct MatchEngine {
     symbol: String,
@@ -22,7 +21,7 @@ impl MatchEngine {
     pub fn new(symbol: String, isin: String) -> Self {
         let mut book = OptLimitOrderBook::new();
 
-        println!("--- Initializing engine instance for {symbol} ({isin}) ---");
+        println!("--- Initializing engine instance for {symbol} (ISIN:{isin}) ---");
         Self {
             symbol,
             isin,
@@ -36,28 +35,28 @@ impl MatchEngine {
 
         let mut engine_msg_out_seq_num: u32 = 1;
 
-        let mut order_seq_num: u32 = 1;
-        let mut execution_seq_num: u32 = 1;
+        let mut initial_order_seq_num: u32 = 1;
+        let mut initial_execution_seq_num: u32 = 1;
 
         let mut timer_epoch = epoch_nanos();
-        let mut timer_ord = 1;
-        let mut timer_exe = 1;
+        let mut order_seq_num = 1;
+        let mut execution_sequence_number = 1;
 
         loop {
             let cycle_start_epoch = epoch_nanos();
 
             // oe phase
-            (engine_msg_out_seq_num, order_seq_num) = self.order_entry_cycle(engine_msg_out_seq_num, order_seq_num, &order_tx, &order_cycle_msg_out_tx);
+            (engine_msg_out_seq_num, initial_order_seq_num) = self.order_entry_cycle(engine_msg_out_seq_num, initial_order_seq_num, &order_tx, &order_cycle_msg_out_tx);
 
             // match phase
-            (engine_msg_out_seq_num, execution_seq_num) = self.match_cycle(engine_msg_out_seq_num, execution_seq_num, &match_cycle_msg_out_tx);
+            (engine_msg_out_seq_num, initial_execution_seq_num) = self.match_cycle(engine_msg_out_seq_num, initial_execution_seq_num, &match_cycle_msg_out_tx);
 
             if epoch_nanos() - timer_epoch > 1000 * 1000 * 1000 {
                 let nanos = epoch_nanos();
-                println!("nanos: {} ord: {} exe: {} book: {}", nanos - cycle_start_epoch, order_seq_num - timer_ord, execution_seq_num - timer_exe, self.book.count_resting_orders());
+                println!("nanos: {} ord: {} exe: {} book: {}", nanos - cycle_start_epoch, initial_order_seq_num - order_seq_num, initial_execution_seq_num - execution_sequence_number, self.book.count_resting_orders());
                 timer_epoch = nanos;
-                timer_ord = order_seq_num;
-                timer_exe = execution_seq_num;
+                order_seq_num = initial_order_seq_num;
+                execution_sequence_number = initial_execution_seq_num;
             }
         }
     }

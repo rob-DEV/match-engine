@@ -1,4 +1,3 @@
-use common::domain::{OutboundEngineMessage, OutboundMessage};
 use lazy_static::lazy_static;
 use std::net::{Ipv4Addr, SocketAddrV4};
 
@@ -22,21 +21,21 @@ fn main() {
     loop {
         match udp_socket.recv_from(&mut buffer) {
             Ok((size, _)) => {
-                let outbound_engine_message: OutboundEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
-                let outbound_message_type = &outbound_engine_message.outbound_message;
-
-                match outbound_message_type {
-                    OutboundMessage::NewOrderAck(new_order_ack) => {
-                        println!("Received NewOrderAck message");
-                    }
-                    OutboundMessage::CancelOrderAck(cancel_order_ack) => {
-                        println!("Received CancelOrderAck message");
-                    }
-                    OutboundMessage::TradeExecution(execution) => {
-                        println!("Received TradeExecution message");
-                    }
-                    _ => { unimplemented!() }
-                }
+                // let outbound_engine_message:  = bitcode::decode(&buffer[..size]).unwrap();
+                // let outbound_message_type = &outbound_engine_message.outbound_message;
+                //
+                // match outbound_message_type {
+                //     OutboundMessage::NewOrderAck(new_order_ack) => {
+                //         println!("Received NewOrderAck message");
+                //     }
+                //     OutboundMessage::CancelOrderAck(cancel_order_ack) => {
+                //         println!("Received CancelOrderAck message");
+                //     }
+                //     OutboundMessage::TradeExecution(execution) => {
+                //         println!("Received TradeExecution message");
+                //     }
+                //     _ => { unimplemented!() }
+                // }
             }
             Err(_) => {}
         }

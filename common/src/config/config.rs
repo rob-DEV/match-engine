@@ -4,7 +4,7 @@ use std::path::Path;
 
 pub fn load_engine_config() -> HashMap<String, String> {
     let settings = Config::builder()
-        .add_source(File::from(Path::new("/home/robert/dev/rust/match-engine/config/config.json")))
+        .add_source(File::from(Path::new("/home/robert/dev/match-engine/config/config.json")))
         .build()
         .unwrap();
 
@@ -19,3 +19,4 @@ pub fn load_engine_config() -> HashMap<String, String> {
 
     config_map
 }
+

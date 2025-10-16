@@ -25,12 +25,12 @@ fn main() -> Result<(), Box<dyn Error>> {
     let (engine_msg_out_tx, engine_msg_out_rx): (Sender<SequencedEngineMessage>, Receiver<SequencedEngineMessage>) = mpsc::channel();
     let (order_entry_tx, order_entry_rx): (Sender<Order>, Receiver<Order>) = mpsc::channel();
 
-    let mut core_ids = core_affinity::get_core_ids().unwrap().into_iter().collect::<Vec<_>>();
+    let core_ids = core_affinity::get_core_ids().unwrap().into_iter().collect::<Vec<_>>();
     let pinned_match_core = core_ids[0];
     let pinned_msg_in_core = core_ids[1];
     let pinned_msg_out_core = core_ids[2];
 
-    // Core OE and Match Thread
+    // OE and Match Thread
     let engine_thread = thread::spawn(move || {
         core_affinity::set_for_current(pinned_match_core);
         initialize_match_thread(engine_msg_out_tx, order_entry_rx);

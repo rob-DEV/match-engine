@@ -1,7 +1,7 @@
 use crate::book::book::Book;
+use common::domain::domain::Side;
 use common::domain::execution::Execution;
 use common::domain::order::{CancelOrder, LimitOrder};
-use common::domain::domain::Side;
 use common::util::time::epoch_nanos;
 use rand::random;
 use std::cmp::Ordering;
@@ -23,7 +23,6 @@ impl HalfBook {
     pub fn new() -> Self {
         Self {
             price_tree_map: BTreeMap::new(),
-            // price_map: HashMap::with_capacity(100_000),
             order_map: HashMap::with_capacity(1_000_000),
             volume: 0,
             depth: 0,
@@ -67,7 +66,10 @@ impl HalfBook {
             self.add_price(order_px);
         }
 
-        self.price_tree_map.get_mut(&order_px).unwrap().push_back(order);
+        self.price_tree_map
+            .get_mut(&order_px)
+            .unwrap()
+            .push_back(order);
         self.order_map.insert(order_id, order);
         self.num_orders += 1;
         self.volume += order_qty;
@@ -101,7 +103,10 @@ impl OptLimitOrderBook {
     }
 }
 
-fn attempt_order_match(ask: &LimitOrder, bid: &LimitOrder) -> Option<(Execution, Option<LimitOrder>)> {
+fn attempt_order_match(
+    ask: &LimitOrder,
+    bid: &LimitOrder,
+) -> Option<(Execution, Option<LimitOrder>)> {
     let (ask, bid) = match (ask.action, bid.action) {
         (Side::BUY, Side::SELL) => (bid, ask),
         (Side::SELL, Side::BUY) => (ask, bid),
@@ -109,18 +114,16 @@ fn attempt_order_match(ask: &LimitOrder, bid: &LimitOrder) -> Option<(Execution,
     };
 
     match ask.qty.cmp(&bid.qty) {
-        Ordering::Equal => {
-            Some((
-                Execution {
-                    id: random::<u32>(),
-                    fill_qty: ask.qty,
-                    ask: ask.clone(),
-                    bid: bid.clone(),
-                    execution_time: epoch_nanos(),
-                },
-                None,
-            ))
-        }
+        Ordering::Equal => Some((
+            Execution {
+                id: random::<u32>(),
+                fill_qty: ask.qty,
+                ask: ask.clone(),
+                bid: bid.clone(),
+                execution_time: epoch_nanos(),
+            },
+            None,
+        )),
         Ordering::Greater => {
             let quantity = bid.qty;
             let mut remainder = ask.clone();
@@ -170,7 +173,10 @@ impl Book for OptLimitOrderBook {
     fn check_for_trades(&mut self, max_execution_per_cycle: usize, arr: &mut [Execution]) -> usize {
         let mut num_executions: usize = 0;
 
-        while let (Some(mut ask_order_list_entry), Some(mut bid_order_list_entry)) = (self.asks.price_tree_map.first_entry(), self.bids.price_tree_map.last_entry()) {
+        while let (Some(mut ask_order_list_entry), Some(mut bid_order_list_entry)) = (
+            self.asks.price_tree_map.first_entry(),
+            self.bids.price_tree_map.last_entry(),
+        ) {
             let ask_price = ask_order_list_entry.key();
             let bid_price = bid_order_list_entry.key();
             //
@@ -179,8 +185,10 @@ impl Book for OptLimitOrderBook {
                 return num_executions;
             }
 
-
-            let order_result: Vec<(u32, u32, Option<LimitOrder>)> = ask_order_list_entry.get().iter().zip(bid_order_list_entry.get().iter())
+            let order_result: Vec<(u32, u32, Option<LimitOrder>)> = ask_order_list_entry
+                .get()
+                .iter()
+                .zip(bid_order_list_entry.get().iter())
                 // .take_while(|_| num_executions > max_execution_per_cycle)
                 .map(|(ask, bid)| {
                     let (ask, bid) = match (ask.action, bid.action) {
@@ -194,18 +202,16 @@ impl Book for OptLimitOrderBook {
                     }
 
                     let b = match ask.qty.cmp(&bid.qty) {
-                        Ordering::Equal => {
-                            Some((
-                                Execution {
-                                    id: random::<u32>(),
-                                    fill_qty: ask.qty,
-                                    ask: ask.clone(),
-                                    bid: bid.clone(),
-                                    execution_time: epoch_nanos(),
-                                },
-                                None,
-                            ))
-                        }
+                        Ordering::Equal => Some((
+                            Execution {
+                                id: random::<u32>(),
+                                fill_qty: ask.qty,
+                                ask: ask.clone(),
+                                bid: bid.clone(),
+                                execution_time: epoch_nanos(),
+                            },
+                            None,
+                        )),
                         Ordering::Greater => {
                             let quantity = bid.qty;
                             let mut remainder = ask.clone();
@@ -261,16 +267,10 @@ impl Book for OptLimitOrderBook {
 
                 match v {
                     None => {}
-                    Some(a) => {
-                        match a.action {
-                            Side::BUY => {
-                                self.bids.add_order(*a)
-                            }
-                            Side::SELL => {
-                                self.asks.add_order(*a)
-                            }
-                        }
-                    }
+                    Some(a) => match a.action {
+                        Side::BUY => self.bids.add_order(*a),
+                        Side::SELL => self.asks.add_order(*a),
+                    },
                 }
             })
         }

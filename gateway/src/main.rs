@@ -1,6 +1,6 @@
-mod parser;
 mod client_state;
 mod message;
+mod parser;
 
 use crate::client_state::on_client_connection;
 use crate::message::GatewayMessage;
@@ -19,41 +19,69 @@ use std::{env, thread};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 lazy_static! {
-    pub static ref GATEWAY_PORT: u16 = env::var("GATEWAY_PORT").unwrap_or("3001".to_owned()).parse::<u16>().unwrap();
-    pub static ref ENGINE_MSG_IN_PORT: u16 = env::var("ENGINE_PORT").unwrap_or("3000".to_owned()).parse::<u16>().unwrap();
-    pub static ref ENGINE_MSG_OUT_PORT: u16 = env::var("ENGINE_PORT").unwrap_or("3500".to_owned()).parse::<u16>().unwrap();
+    pub static ref GATEWAY_PORT: u16 = env::var("GATEWAY_PORT")
+        .unwrap_or("3001".to_owned())
+        .parse::<u16>()
+        .unwrap();
+    pub static ref ENGINE_MSG_IN_PORT: u16 = env::var("ENGINE_PORT")
+        .unwrap_or("3000".to_owned())
+        .parse::<u16>()
+        .unwrap();
+    pub static ref ENGINE_MSG_OUT_PORT: u16 = env::var("ENGINE_PORT")
+        .unwrap_or("3500".to_owned())
+        .parse::<u16>()
+        .unwrap();
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     println!("--- Initializing Gateway ---");
 
-    let (client_msg_tx, client_msg_rx): (Sender<GatewayMessage>, Receiver<GatewayMessage>) = mpsc::channel();
-    let (msg_in_tx, engine_msg_in_rx): (Sender<SequencedEngineMessage>, Receiver<SequencedEngineMessage>) = mpsc::channel();
-    let gateway_to_engine_msg_in_tx = Arc::new(Mutex::new(HashMap::<u32, Sender<EngineMessage>>::new()));
+    let core_ids = core_affinity::get_core_ids().unwrap().into_iter().collect::<Vec<_>>();
+    let pinned_match_core = core_ids[0];
+    let pinned_msg_in_core = core_ids[1];
+    let pinned_msg_out_core = core_ids[2];
 
-    let engine_msg_in_thread = thread::spawn(|| {
-        initialize_msg_in_message_submitter(client_msg_rx).expect("failed to initialize engine MSG_IN thread");
+    let (client_msg_tx, client_msg_rx): (Sender<GatewayMessage>, Receiver<GatewayMessage>) =
+        mpsc::channel();
+    let (msg_in_tx, engine_msg_in_rx): (
+        Sender<SequencedEngineMessage>,
+        Receiver<SequencedEngineMessage>,
+    ) = mpsc::channel();
+    let gateway_to_engine_msg_in_tx =
+        Arc::new(Mutex::new(HashMap::<u32, Sender<EngineMessage>>::new()));
+
+    let engine_msg_in_thread = thread::spawn(move || {
+        core_affinity::set_for_current(pinned_msg_in_core);
+        initialize_msg_in_message_submitter(client_msg_rx)
+            .expect("failed to initialize engine MSG_IN thread");
     });
 
     let thread_session_msg_tx_map = gateway_to_engine_msg_in_tx.clone();
-    let engine_msg_out_thread = thread::spawn(|| {
-        initialize_engine_msg_out_receiver(thread_session_msg_tx_map).expect("failed to initialize engine MSG_OUT thread");
+    let engine_msg_out_thread = thread::spawn(move || {
+        core_affinity::set_for_current(pinned_msg_out_core);
+        initialize_engine_msg_out_receiver(thread_session_msg_tx_map)
+            .expect("failed to initialize engine MSG_OUT thread");
     });
 
     let thread_session_msg_tx_map = gateway_to_engine_msg_in_tx.clone();
-    initialize_gateway_session_handler(client_msg_tx, thread_session_msg_tx_map).await.expect("failed to initialize gateway session handler");
+    initialize_gateway_session_handler(client_msg_tx, thread_session_msg_tx_map)
+        .await
+        .expect("failed to initialize gateway session handler");
 
     engine_msg_out_thread.join().unwrap();
     engine_msg_in_thread.join().unwrap();
     Ok(())
 }
 
-async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<GatewayMessage>, session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>) -> Result<(), Box<dyn Error>> {
+async fn initialize_gateway_session_handler(
+    inbound_engine_message_tx: Sender<GatewayMessage>,
+    session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>,
+) -> Result<(), Box<dyn Error>> {
     // Shared for now
     let message_converter = Arc::new(Mutex::new(MessageConverter::new()));
-    let tcp_listener = tokio::net::TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], *GATEWAY_PORT)))
-        .await?;
+    let tcp_listener =
+        tokio::net::TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], *GATEWAY_PORT))).await?;
 
     println!("Initialized Gateway FIX session handler {}", *GATEWAY_PORT);
 
@@ -64,7 +92,13 @@ async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<Ga
         let task_session_msg_tx_map = session_msg_tx_map.clone();
 
         tokio::spawn(async move {
-            on_client_connection(connection, task_message_converter, task_inbound_engine_message_tx, task_session_msg_tx_map).await;
+            on_client_connection(
+                connection,
+                task_message_converter,
+                task_inbound_engine_message_tx,
+                task_session_msg_tx_map,
+            )
+            .await;
         });
     }
 }
@@ -72,7 +106,10 @@ async fn initialize_gateway_session_handler(inbound_engine_message_tx: Sender<Ga
 fn initialize_msg_in_message_submitter(rx: Receiver<GatewayMessage>) -> Result<(), Box<dyn Error>> {
     let udp_socket = multicast_udp_socket(*ENGINE_MSG_IN_PORT, false);
     let send_addr = "0.0.0.0:3000".parse::<SocketAddr>().unwrap();
-    println!("Initialized Gateway -> MSG_IN multicast on port {}", *ENGINE_MSG_IN_PORT);
+    println!(
+        "Initialized Gateway -> MSG_IN multicast on port {}",
+        *ENGINE_MSG_IN_PORT
+    );
 
     let mut sequence = 1;
     loop {
@@ -81,20 +118,6 @@ fn initialize_msg_in_message_submitter(rx: Receiver<GatewayMessage>) -> Result<(
 
             let message_in = match inbound_engine_message {
                 GatewayMessage::LimitOrder(new) => {
-                    // let s = random::<u8>();
-                    // let sc = random::<u32>();
-                    // let sx = random::<u32>();
-                    //
-                    // for i in 0..1 {
-                    //     r.push(NewOrder {
-                    //         client_id: new.client_id,
-                    //         order_action: if s % 2 == 0 { BUY } else { SELL },
-                    //         px: sc % 100,
-                    //         qty: sx % 10,
-                    //         timestamp: epoch_nanos(),
-                    //     })
-                    // }
-
                     SequencedEngineMessage {
                         sequence_number: sequence,
                         message: EngineMessage::NewOrder(new),
@@ -103,49 +126,59 @@ fn initialize_msg_in_message_submitter(rx: Receiver<GatewayMessage>) -> Result<(
                 GatewayMessage::MarketOrder(_) => {
                     unimplemented!()
                 }
-                GatewayMessage::CancelOrder(cancel) => {
-                    SequencedEngineMessage {
-                        sequence_number: sequence,
-                        message: EngineMessage::CancelOrder(cancel),
-                    }
-                }
+                GatewayMessage::CancelOrder(cancel) => SequencedEngineMessage {
+                    sequence_number: sequence,
+                    message: EngineMessage::CancelOrder(cancel),
+                },
             };
             let encoded: Vec<u8> = bitcode::encode(&message_in);
-            udp_socket.send_to(&encoded, send_addr).expect("TODO: panic message");
+            udp_socket
+                .send_to(&encoded, send_addr)
+                .expect("TODO: panic message");
 
             let mut ack_bits = [0u8; 4];
-            udp_socket.recv_from(&mut ack_bits).expect("TODO: panic message");
+            udp_socket
+                .recv_from(&mut ack_bits)
+                .expect("TODO: panic message");
 
             let id: u32 = u32::from_le_bytes([ack_bits[0], ack_bits[1], ack_bits[2], ack_bits[3]]);
             assert_eq!(id, sequence);
 
             sequence += 1;
-        };
+        }
     }
 }
 
-fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>) -> Result<(), Box<dyn Error>> {
+fn initialize_engine_msg_out_receiver(
+    session_data_tx: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>,
+) -> Result<(), Box<dyn Error>> {
     let udp_socket = multicast_udp_socket(*ENGINE_MSG_OUT_PORT, true);
     let mut buffer = [0; 256];
 
-    println!("Initialized MSG_OUT -> Gateway multicast on port {}", *ENGINE_MSG_OUT_PORT);
+    println!(
+        "Initialized MSG_OUT -> Gateway multicast on port {}",
+        *ENGINE_MSG_OUT_PORT
+    );
 
     loop {
         match udp_socket.recv_from(&mut buffer) {
             Ok((size, _)) => {
-                let outbound_engine_message: SequencedEngineMessage = bitcode::decode(&buffer[..size]).unwrap();
+                let outbound_engine_message: SequencedEngineMessage =
+                    bitcode::decode(&buffer[..size]).unwrap();
 
                 let outbound_message_type = &outbound_engine_message.message;
 
                 let mut session_data = session_data_tx.lock().unwrap();
                 match outbound_message_type {
                     EngineMessage::NewOrderAck(new_ack) => {
+                        // println!("New order ack: {:?}", new_ack);
                         let client_id = new_ack.client_id;
 
                         let session_state = session_data.get_mut(&client_id).unwrap();
                         session_state.send(outbound_engine_message.message).unwrap()
                     }
                     EngineMessage::CancelOrderAck(cancel_ack) => {
+                        // println!("Cancel order ack: {:?}", cancel_ack);
                         let client_id = cancel_ack.client_id;
                         let session_state = session_data.get_mut(&client_id).unwrap();
                         session_state.send(outbound_engine_message.message).unwrap()
@@ -166,13 +199,18 @@ fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Se
                             execution_time: execution.execution_time,
                         });
 
+                        // println!("Trade execution: {:?}", execution);
                         let bid_tx = session_data.get(&bid_client_id).unwrap();
                         bid_tx.send(outbound_engine_message.message).unwrap();
 
+                        // println!("Trade execution: {:?}", ask_exec);
                         let ask_tx = session_data.get(&ask_client_id).unwrap();
                         ask_tx.send(ask_exec).unwrap();
+
                     }
-                    _ => { unimplemented!() }
+                    _ => {
+                        unimplemented!()
+                    }
                 }
             }
             Err(_) => {}
@@ -181,4 +219,3 @@ fn initialize_engine_msg_out_receiver(session_data_tx: Arc<Mutex<HashMap<u32, Se
 
     Ok(())
 }
-

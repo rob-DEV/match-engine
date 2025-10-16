@@ -31,10 +31,6 @@ fn reader(read_stream: TcpStream) {
             println!("Client disconnected!");
             exit(0);
         }
-
-        // if SHOULD_LOG.load(std::sync::atomic::Ordering::Relaxed) {
-        //     // println!("Response: {}", line.trim());
-        // }
     }
 }
 
