@@ -10,14 +10,8 @@ pub struct SequencedEngineMessage {
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]
-pub struct Acknowledgement {
-    pub sequence_number: SequenceNumber
-}
-
-#[derive(Encode, Decode, PartialEq, Debug)]
 pub enum EngineMessage {
     NewOrder(NewOrder),
-    NewOrderBatch(Vec<NewOrder>),
     NewOrderAck(NewOrderAck),
     CancelOrder(CancelOrder),
     CancelOrderAck(CancelOrderAck),

@@ -6,7 +6,6 @@ use common::util::time::epoch_nanos;
 use rand::random;
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, HashMap, LinkedList};
-use std::fmt::Debug;
 
 type Price = u32;
 type LimitOrderList = LinkedList<LimitOrder>;

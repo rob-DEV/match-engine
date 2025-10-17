@@ -43,7 +43,8 @@ impl ClientSessionState {
 }
 
 pub async fn on_client_connection(connection: (TcpStream, SocketAddr), message_converter: Arc<Mutex<MessageConverter>>, inbound_engine_message_tx: Sender<GatewayMessage>, client_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>) {
-    let (mut stream, client_addr) = connection;
+    println!("Client connected!");
+    let (stream, client_addr) = connection;
     let (reader, writer) = stream.into_split();
     let mut buf_reader = BufReader::new(reader);
     let mut writer = writer;

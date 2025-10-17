@@ -69,7 +69,7 @@ impl MessageConverter {
     }
 
     pub fn engine_msg_out_to_fix(&mut self, engine_msg_out: EngineMessage) -> Vec<u8> {
-        let mut out_buffer = vec![0; 256];
+        let mut out_buffer = vec![0; 128];
 
         match engine_msg_out {
             EngineMessage::NewOrderAck(_) => {
