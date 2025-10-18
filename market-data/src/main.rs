@@ -1,8 +1,7 @@
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
-use lazy_static::lazy_static;
-use std::net::{Ipv4Addr, SocketAddrV4};
 use common::network::network_constants::MAX_UDP_PACKET_SIZE;
 use common::network::udp_socket::multicast_udp_socket;
+use lazy_static::lazy_static;
 
 lazy_static! {
     pub static ref ENGINE_MSG_OUT_PORT: u16 = 3500;
@@ -11,7 +10,7 @@ lazy_static! {
 fn main() {
     let udp_socket = multicast_udp_socket(*ENGINE_MSG_OUT_PORT, true);
     let mut buffer = [0; MAX_UDP_PACKET_SIZE];
-    
+
     println!(
         "Initialized MSG_OUT -> Market Data Reporter multicast on port {}",
         *ENGINE_MSG_OUT_PORT

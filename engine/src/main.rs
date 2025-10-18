@@ -13,6 +13,7 @@ use std::{env, thread};
 mod engine;
 mod book;
 mod process;
+pub mod algorithm;
 
 lazy_static! {
     pub static ref ENGINE_MSG_IN_PORT: u16 = env::var("ENGINE_PORT").unwrap_or("3000".to_owned()).parse::<u16>().unwrap();
