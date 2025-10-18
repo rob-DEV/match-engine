@@ -9,9 +9,9 @@ use std::cmp::Ordering;
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::opt_limit_order_book::OptLimitOrderBook;
 
-pub struct FifoMatch;
+pub struct FifoMatchStrategy;
 
-impl MatchStrategy for FifoMatch {
+impl MatchStrategy for FifoMatchStrategy {
     fn match_orders(
         &self,
         order_book: &mut OptLimitOrderBook,
@@ -19,13 +19,14 @@ impl MatchStrategy for FifoMatch {
     ) -> usize {
         let mut num_executions: usize = 0;
 
-        while let (Some(mut ask_order_list_entry), Some(mut bid_order_list_entry)) = (
-            order_book.asks.price_tree_map.first_entry(),
+        while let (Some(mut bid_order_list_entry), Some(mut ask_order_list_entry)) = (
             order_book.bids.price_tree_map.last_entry(),
+            order_book.asks.price_tree_map.first_entry(),
         ) {
-            let ask_price = ask_order_list_entry.key();
             let bid_price = bid_order_list_entry.key();
+            let ask_price = ask_order_list_entry.key();
 
+            println!("bid_price: {}, ask_price: {}", bid_price, ask_price);
             if ask_price > bid_price {
                 return num_executions;
             }
@@ -102,21 +103,23 @@ impl MatchStrategy for FifoMatch {
                 .map(|x| x.unwrap())
                 .collect::<Vec<_>>();
 
-            ask_order_list_entry.get_mut().pop_front();
             bid_order_list_entry.get_mut().pop_back();
+            ask_order_list_entry.get_mut().pop_front();
 
-            order_result.iter().for_each(|(x, t, v)| {
-                order_book.asks.remove_order(*x);
-                order_book.bids.remove_order(*t);
+            order_result.iter().for_each(
+                |(ask_order_id_to_remove, bid_order_id_to_remove, remainder_limit_order)| {
+                    order_book.bids.remove_order(*bid_order_id_to_remove);
+                    order_book.asks.remove_order(*ask_order_id_to_remove);
 
-                match v {
-                    None => {}
-                    Some(a) => match a.action {
-                        Side::BUY => order_book.bids.add_order(*a),
-                        Side::SELL => order_book.asks.add_order(*a),
-                    },
-                }
-            })
+                    match remainder_limit_order {
+                        None => {}
+                        Some(a) => match a.action {
+                            Side::BUY => order_book.bids.add_order(*a),
+                            Side::SELL => order_book.asks.add_order(*a),
+                        },
+                    }
+                },
+            )
         }
 
         num_executions

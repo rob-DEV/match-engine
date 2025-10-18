@@ -1,4 +1,4 @@
-use crate::algorithm::fifo_match_strategy::FifoMatch;
+use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::book::Book;
 use crate::book::opt_limit_order_book::OptLimitOrderBook;
@@ -12,7 +12,7 @@ use std::sync::mpsc::Sender;
 use std::sync::mpsc::{Receiver, TryRecvError};
 use crate::algorithm::pro_rata_match_strategy::ProRataMatchStrategy;
 
-pub const MAX_EXECUTIONS_PER_CYCLE: usize = 2000;
+pub const MAX_EXECUTIONS_PER_CYCLE: usize = 4096;
 
 pub struct MatchEngine {
     symbol: String,

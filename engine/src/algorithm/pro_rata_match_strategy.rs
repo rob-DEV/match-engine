@@ -1,7 +1,8 @@
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::book::Book;
 use crate::book::opt_limit_order_book::{LimitOrderList, OptLimitOrderBook, Price};
-use common::domain::domain::Side;
+use crate::engine::match_engine::MAX_EXECUTIONS_PER_CYCLE;
+use common::domain::domain::Side::{BUY, SELL};
 use common::domain::execution::Execution;
 use common::domain::order::CancelOrder;
 use common::util::time::epoch_nanos;
@@ -19,18 +20,16 @@ impl MatchStrategy for ProRataMatchStrategy {
         let mut num_executions: usize = 0;
 
         while let (Some(mut ask_order_list_entry), Some(mut bid_order_list_entry)) = (
-            order_book.asks.price_tree_map.first_entry(),
+            order_book.asks.price_tree_map.last_entry(),
             order_book.bids.price_tree_map.last_entry(),
         ) {
             let bid_price = bid_order_list_entry.key();
             let ask_price = ask_order_list_entry.key();
 
-            if ask_price > bid_price {
+            if *ask_price != *bid_price {
                 return num_executions;
             }
 
-            // on price level x
-            println!("On price level ask {} bid {}", ask_price, bid_price);
             let total_bid_qty_at_price: u32 = bid_order_list_entry
                 .get()
                 .iter()
@@ -43,8 +42,8 @@ impl MatchStrategy for ProRataMatchStrategy {
                 .sum();
 
             println!(
-                "Asks at level: {} Bids at level: {}",
-                total_bid_qty_at_price, total_ask_qty_at_price
+                "PriceLevel: {} Asks at level: {} Bids at level: {}",
+                bid_price, total_bid_qty_at_price, total_ask_qty_at_price
             );
 
             let matched_qty = total_bid_qty_at_price.min(total_ask_qty_at_price);
@@ -52,8 +51,6 @@ impl MatchStrategy for ProRataMatchStrategy {
             if matched_qty == 0 {
                 break;
             }
-
-            println!("Matching {} units at price {}", matched_qty, ask_price);
 
             let mut bid_allocs: Vec<u32> = Self::pro_rata_allocate_fills(
                 &mut bid_order_list_entry,
@@ -66,33 +63,91 @@ impl MatchStrategy for ProRataMatchStrategy {
                 matched_qty,
             );
 
-            println!("bid_allocs: {:?}", bid_allocs);
-            println!("ask_allocs: {:?}", ask_allocs);
+            if num_executions + ask_allocs.len() * (bid_allocs.len()) >= MAX_EXECUTIONS_PER_CYCLE {
+                println!("Overflowing at {}", num_executions);
+                return num_executions;
+            }
 
-            println!("Checking for any rounding issues on allocation");
-
-            let leftover_bids = Self::check_for_allocation_rounding_errors(
+            Self::check_for_allocation_rounding_errors(
                 &mut bid_order_list_entry,
                 total_bid_qty_at_price,
                 matched_qty,
                 &mut bid_allocs,
             );
-            println!("Leftover bids: {}", leftover_bids);
-            let leftover_asks = Self::check_for_allocation_rounding_errors(
+            Self::check_for_allocation_rounding_errors(
                 &mut ask_order_list_entry,
                 total_ask_qty_at_price,
                 matched_qty,
                 &mut ask_allocs,
             );
-            println!("Leftover asks: {}", leftover_asks);
 
             // at this point, all available qty should be allocated with any qty missed in integer rounding being given to the largest party
 
-            println!("Final allocations: {:?} \n {:?}", bid_allocs, ask_allocs);
+            assert_eq!(bid_allocs.iter().sum::<u32>(), matched_qty);
+            assert_eq!(ask_allocs.iter().sum::<u32>(), matched_qty);
 
-            assert_eq!(bid_allocs.iter().sum::<u32>() + ask_allocs.iter().sum::<u32>(), matched_qty);
+            let mut bids_to_modify: Vec<(u32, u32)> = Vec::new();
+            let mut asks_to_modify: Vec<(u32, u32)> = Vec::new();
 
-           
+            let mut bids_to_cancel: Vec<u32> = Vec::new();
+            let mut asks_to_cancel: Vec<u32> = Vec::new();
+
+            for (bid_alloc_idx, bid_order) in bid_order_list_entry.get().iter().enumerate() {
+                for (ask_alloc_idx, ask_order) in ask_order_list_entry.get().iter().enumerate() {
+                    let fill_qty = bid_allocs[bid_alloc_idx].min(ask_allocs[ask_alloc_idx]);
+                    if fill_qty > 0 {
+                        let execution = Execution {
+                            id: random::<u32>(),
+                            ask: ask_order.clone(),
+                            bid: bid_order.clone(),
+                            fill_qty,
+                            execution_time: epoch_nanos(),
+                        };
+
+                        mutable_execution_buffer[num_executions] = execution;
+                        num_executions += 1;
+
+                        bid_allocs[bid_alloc_idx] -= fill_qty;
+                        ask_allocs[ask_alloc_idx] -= fill_qty;
+
+                        if bid_allocs[bid_alloc_idx] == 0 {
+                            bids_to_cancel.push(bid_order.id);
+                        } else {
+                            bids_to_modify.push((bid_order.id, bid_order.qty - fill_qty));
+                        }
+
+                        if ask_allocs[ask_alloc_idx] == 0 {
+                            asks_to_cancel.push(ask_order.id);
+                        } else {
+                            asks_to_modify.push((ask_order.id, ask_order.qty - fill_qty));
+                        }
+                    }
+                }
+            }
+
+            bids_to_modify.iter().for_each(|(order_id, new_qty)| {
+                order_book.modify_order(BUY, *order_id, *new_qty);
+            });
+
+            asks_to_modify.iter().for_each(|(order_id, new_qty)| {
+                order_book.modify_order(SELL, *order_id, *new_qty);
+            });
+
+            bids_to_cancel.iter().for_each(|order_id| {
+                order_book.remove_order(CancelOrder {
+                    client_id: 0,
+                    action: BUY,
+                    id: *order_id,
+                });
+            });
+
+            asks_to_cancel.iter().for_each(|order_id| {
+                order_book.remove_order(CancelOrder {
+                    client_id: 0,
+                    action: SELL,
+                    id: *order_id,
+                });
+            });
         }
 
         num_executions
@@ -109,7 +164,6 @@ impl ProRataMatchStrategy {
             .get()
             .iter()
             .map(|o| {
-                // o.id,
                 (o.qty as f64 * matched_qty as f64 / total_bid_qty_at_price as f64).floor() as u32
             })
             .collect()

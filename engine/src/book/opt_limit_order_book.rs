@@ -11,7 +11,6 @@ pub struct HalfBook {
     pub order_map: HashMap<u32, LimitOrder>,
 
     pub volume: u32,
-    pub depth: u32,
     pub num_orders: u32,
 }
 impl HalfBook {
@@ -20,19 +19,16 @@ impl HalfBook {
             price_tree_map: BTreeMap::new(),
             order_map: HashMap::with_capacity(1_000_000),
             volume: 0,
-            depth: 0,
             num_orders: 0,
         }
     }
 
     pub fn add_price(&mut self, px: Price) {
-        self.depth += 1;
         let order_list = LimitOrderList::new();
         self.price_tree_map.insert(px, order_list);
     }
 
     pub fn remove_price(&mut self, px: Price) {
-        self.depth -= 1;
         self.price_tree_map.remove(&px);
     }
 
@@ -56,6 +52,27 @@ impl HalfBook {
         self.order_map.insert(order_id, order);
         self.num_orders += 1;
         self.volume += order_qty;
+    }
+
+    pub fn modify_order(&mut self, id: u32, new_qty: u32) {
+        let order = self.order_map.get_mut(&id);
+
+        match order {
+            Some(order) => {
+                self.volume -= (order.qty - new_qty);
+                order.qty = new_qty;
+
+                if let Some(priceList) = self.price_tree_map.get_mut(&order.px) {
+                    for price_tree_order in priceList {
+                        if price_tree_order.id == id {
+                            price_tree_order.qty = new_qty;
+                            break;
+                        }
+                    }
+                }
+            }
+            None => {}
+        }
     }
 
     pub fn remove_order(&mut self, id: u32) {
@@ -104,6 +121,17 @@ impl Book for OptLimitOrderBook {
             }
             Side::SELL => {
                 self.asks.add_order(order);
+            }
+        };
+    }
+
+    fn modify_order(&mut self, action: Side, order_id: u32, new_qty: u32) {
+        match action {
+            Side::BUY => {
+                self.bids.modify_order(order_id, new_qty);
+            }
+            Side::SELL => {
+                self.asks.modify_order(order_id, new_qty);
             }
         };
     }
