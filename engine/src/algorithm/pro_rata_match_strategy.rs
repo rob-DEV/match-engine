@@ -20,13 +20,13 @@ impl MatchStrategy for ProRataMatchStrategy {
         let mut num_executions: usize = 0;
 
         while let (Some(mut ask_order_list_entry), Some(mut bid_order_list_entry)) = (
-            order_book.asks.price_tree_map.last_entry(),
+            order_book.asks.price_tree_map.first_entry(),
             order_book.bids.price_tree_map.last_entry(),
         ) {
             let bid_price = bid_order_list_entry.key();
             let ask_price = ask_order_list_entry.key();
 
-            if *ask_price != *bid_price {
+            if *ask_price > *bid_price {
                 return num_executions;
             }
 
@@ -86,66 +86,74 @@ impl MatchStrategy for ProRataMatchStrategy {
             assert_eq!(bid_allocs.iter().sum::<u32>(), matched_qty);
             assert_eq!(ask_allocs.iter().sum::<u32>(), matched_qty);
 
-            let mut bids_to_modify: Vec<(u32, u32)> = Vec::new();
-            let mut asks_to_modify: Vec<(u32, u32)> = Vec::new();
+            // Phase 1: compute allocations
+            let mut bid_iter = bid_order_list_entry.get().iter();
+            let mut ask_iter = ask_order_list_entry.get().iter();
+
+            let mut bid_idx = 0;
+            let mut ask_idx = 0;
 
             let mut bids_to_cancel: Vec<u32> = Vec::new();
             let mut asks_to_cancel: Vec<u32> = Vec::new();
+            let mut bids_to_modify: Vec<(u32, u32)> = Vec::new();
+            let mut asks_to_modify: Vec<(u32, u32)> = Vec::new();
 
-            for (bid_alloc_idx, bid_order) in bid_order_list_entry.get().iter().enumerate() {
-                for (ask_alloc_idx, ask_order) in ask_order_list_entry.get().iter().enumerate() {
-                    let fill_qty = bid_allocs[bid_alloc_idx].min(ask_allocs[ask_alloc_idx]);
-                    if fill_qty > 0 {
-                        let execution = Execution {
-                            id: random::<u32>(),
-                            ask: ask_order.clone(),
-                            bid: bid_order.clone(),
-                            fill_qty,
-                            execution_time: epoch_nanos(),
-                        };
+            while let (Some(bid_order), Some(ask_order)) = (bid_iter.next(), ask_iter.next()) {
+                let fill_qty = bid_allocs[bid_idx].min(ask_allocs[ask_idx]);
+                if fill_qty == 0 {
+                    continue;
+                }
 
-                        mutable_execution_buffer[num_executions] = execution;
-                        num_executions += 1;
+                // push execution into buffer
+                mutable_execution_buffer[num_executions] = Execution {
+                    bid: bid_order.clone(),
+                    ask: ask_order.clone(),
+                    fill_qty,
+                    id: random::<u32>(),
+                    execution_time: epoch_nanos(),
+                };
 
-                        bid_allocs[bid_alloc_idx] -= fill_qty;
-                        ask_allocs[ask_alloc_idx] -= fill_qty;
+                bid_allocs[bid_idx] -= fill_qty;
+                ask_allocs[ask_idx] -= fill_qty;
 
-                        if bid_allocs[bid_alloc_idx] == 0 {
-                            bids_to_cancel.push(bid_order.id);
-                        } else {
-                            bids_to_modify.push((bid_order.id, bid_order.qty - fill_qty));
-                        }
+                if bid_allocs[bid_idx] == 0 {
+                    bids_to_cancel.push(bid_order.id);
+                } else {
+                    bids_to_modify.push((bid_order.id, bid_allocs[bid_idx]));
+                }
 
-                        if ask_allocs[ask_alloc_idx] == 0 {
-                            asks_to_cancel.push(ask_order.id);
-                        } else {
-                            asks_to_modify.push((ask_order.id, ask_order.qty - fill_qty));
-                        }
-                    }
+                if ask_allocs[ask_idx] == 0 {
+                    asks_to_cancel.push(ask_order.id);
+                } else {
+                    asks_to_modify.push((ask_order.id, ask_allocs[ask_idx]));
+                }
+
+                if bid_allocs[bid_idx] == 0 {
+                    bid_idx += 1;
+                }
+                if ask_allocs[ask_idx] == 0 {
+                    ask_idx += 1;
                 }
             }
 
-            bids_to_modify.iter().for_each(|(order_id, new_qty)| {
-                order_book.modify_order(BUY, *order_id, *new_qty);
-            });
-
-            asks_to_modify.iter().for_each(|(order_id, new_qty)| {
-                order_book.modify_order(SELL, *order_id, *new_qty);
-            });
-
-            bids_to_cancel.iter().for_each(|order_id| {
+            bids_to_modify
+                .iter()
+                .for_each(|(id, qty)| order_book.modify_order(BUY, *id, *qty));
+            asks_to_modify
+                .iter()
+                .for_each(|(id, qty)| order_book.modify_order(SELL, *id, *qty));
+            bids_to_cancel.iter().for_each(|id| {
                 order_book.remove_order(CancelOrder {
                     client_id: 0,
                     action: BUY,
-                    id: *order_id,
+                    id: *id,
                 });
             });
-
-            asks_to_cancel.iter().for_each(|order_id| {
+            asks_to_cancel.iter().for_each(|id| {
                 order_book.remove_order(CancelOrder {
                     client_id: 0,
                     action: SELL,
-                    id: *order_id,
+                    id: *id,
                 });
             });
         }
