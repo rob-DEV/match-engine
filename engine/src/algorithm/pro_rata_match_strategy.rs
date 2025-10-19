@@ -1,7 +1,6 @@
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::book::Book;
 use crate::book::opt_limit_order_book::{LimitOrderList, OptLimitOrderBook, Price};
-use crate::engine::match_engine::MAX_EXECUTIONS_PER_CYCLE;
 use common::domain::domain::Side::{BUY, SELL};
 use common::domain::execution::Execution;
 use common::domain::order::CancelOrder;
@@ -18,150 +17,120 @@ impl MatchStrategy for ProRataMatchStrategy {
         mutable_execution_buffer: &mut [Execution],
     ) -> usize {
         let mut num_executions: usize = 0;
-
-        while let (Some(mut ask_order_list_entry), Some(mut bid_order_list_entry)) = (
-            order_book.asks.price_tree_map.first_entry(),
+        while let (Some(mut bid_order_list_entry), Some(mut ask_order_list_entry)) = (
             order_book.bids.price_tree_map.last_entry(),
+            order_book.asks.price_tree_map.first_entry(),
         ) {
-            let bid_price = bid_order_list_entry.key();
-            let ask_price = ask_order_list_entry.key();
+            let highest_bid_price = bid_order_list_entry.key();
+            let lowest_ask_price = ask_order_list_entry.key();
 
-            if *ask_price > *bid_price {
-                return num_executions;
-            }
-
-            let total_bid_qty_at_price: u32 = bid_order_list_entry
-                .get()
-                .iter()
-                .map(|order| order.qty)
-                .sum();
-            let total_ask_qty_at_price: u32 = ask_order_list_entry
-                .get()
-                .iter()
-                .map(|order| order.qty)
-                .sum();
-
-            println!(
-                "PriceLevel: {} Asks at level: {} Bids at level: {}",
-                bid_price, total_bid_qty_at_price, total_ask_qty_at_price
-            );
-
-            let matched_qty = total_bid_qty_at_price.min(total_ask_qty_at_price);
-
-            if matched_qty == 0 {
+            if (highest_bid_price < lowest_ask_price) {
+                println!("No crossing of bids and asks");
                 break;
             }
 
-            let mut bid_allocs: Vec<u32> = Self::pro_rata_allocate_fills(
-                &mut bid_order_list_entry,
-                total_bid_qty_at_price,
-                matched_qty,
+            let total_bid_qty_at_price: u32 =
+                Self::calculate_total_qty_at_level(&mut bid_order_list_entry);
+            let total_ask_qty_at_price: u32 =
+                Self::calculate_total_qty_at_level(&mut ask_order_list_entry);
+
+            let fillable_qty = total_bid_qty_at_price.min(total_ask_qty_at_price);
+
+            let mut bid_allocs: Vec<(u32, u32, u32)> =
+                Self::pro_rata_allocate_fills_remainder_to_largest_party(
+                    &mut bid_order_list_entry,
+                    total_bid_qty_at_price,
+                    fillable_qty,
+                );
+            let mut ask_allocs: Vec<(u32, u32, u32)> =
+                Self::pro_rata_allocate_fills_remainder_to_largest_party(
+                    &mut ask_order_list_entry,
+                    total_ask_qty_at_price,
+                    fillable_qty,
+                );
+            
+            println!(
+                "Final allocations: \nbid_allocs: {:?}\nask_allocs: {:?}",
+                bid_allocs, ask_allocs
             );
-            let mut ask_allocs: Vec<u32> = Self::pro_rata_allocate_fills(
-                &mut ask_order_list_entry,
-                total_ask_qty_at_price,
-                matched_qty,
-            );
+            // bid_allocs [10, 10]
+            // ask_allocs [20]
 
-            if num_executions + ask_allocs.len() * (bid_allocs.len()) >= MAX_EXECUTIONS_PER_CYCLE {
-                println!("Overflowing at {}", num_executions);
-                return num_executions;
-            }
+            // exhaustively fill the allocs only moving to the next when 0
+            // mark 0 orders to be removed
+            // modify reduced orders
+            let mut bid_alloc_iter = bid_allocs.iter();
+            let mut ask_alloc_iter = ask_allocs.iter();
 
-            Self::check_for_allocation_rounding_errors(
-                &mut bid_order_list_entry,
-                total_bid_qty_at_price,
-                matched_qty,
-                &mut bid_allocs,
-            );
-            Self::check_for_allocation_rounding_errors(
-                &mut ask_order_list_entry,
-                total_ask_qty_at_price,
-                matched_qty,
-                &mut ask_allocs,
-            );
+            let mut bid_book_iter = bid_order_list_entry.get().iter();
+            let mut ask_book_iter = ask_order_list_entry.get().iter();
 
-            // at this point, all available qty should be allocated with any qty missed in integer rounding being given to the largest party
+            let mut remaining_qty = fillable_qty;
 
-            assert_eq!(bid_allocs.iter().sum::<u32>(), matched_qty);
-            assert_eq!(ask_allocs.iter().sum::<u32>(), matched_qty);
+            // needs fixed
+            let mut current_bid_alloc = bid_alloc_iter.next().unwrap();
+            let mut current_ask_alloc = ask_alloc_iter.next().unwrap();
 
-            // Phase 1: compute allocations
-            let mut bid_iter = bid_order_list_entry.get().iter();
-            let mut ask_iter = ask_order_list_entry.get().iter();
+            let mut current_bid_order = bid_book_iter.next().unwrap();
+            let mut current_ask_order = ask_book_iter.next().unwrap();
 
-            let mut bid_idx = 0;
-            let mut ask_idx = 0;
+            while remaining_qty > 0 {
+                let (_, _, current_bid_allocation) = current_bid_alloc;
+                let (_, _, current_ask_allocation) = current_ask_alloc;
 
-            let mut bids_to_cancel: Vec<u32> = Vec::new();
-            let mut asks_to_cancel: Vec<u32> = Vec::new();
-            let mut bids_to_modify: Vec<(u32, u32)> = Vec::new();
-            let mut asks_to_modify: Vec<(u32, u32)> = Vec::new();
+                let current_fillable_qty = (*current_bid_allocation).min(*current_ask_allocation);
 
-            while let (Some(bid_order), Some(ask_order)) = (bid_iter.next(), ask_iter.next()) {
-                let ask_qty = ask_order.qty;
-                let bid_qty = bid_order.qty;
-                
-                let fill_qty = bid_allocs[bid_idx].min(ask_allocs[ask_idx]);
-                if fill_qty == 0 {
-                    continue;
-                }
+                let book_bid_order = current_bid_order;
+                let book_ask_order = current_ask_order;
 
-                // push execution into buffer
-                mutable_execution_buffer[num_executions] = Execution {
-                    bid: bid_order.clone(),
-                    ask: ask_order.clone(),
-                    fill_qty,
+                let execution = Execution {
                     id: random::<u32>(),
+                    ask: book_ask_order.clone(),
+                    bid: book_bid_order.clone(),
+                    fill_qty: current_fillable_qty,
                     execution_time: epoch_nanos(),
                 };
 
+                mutable_execution_buffer[num_executions] = execution;
                 num_executions += 1;
 
-                bid_allocs[bid_idx] -= fill_qty;
-                ask_allocs[ask_idx] -= fill_qty;
+                remaining_qty -= current_fillable_qty;
 
-                // bug here! todo()
-                if bid_allocs[bid_idx] == 0 {
-                    bids_to_cancel.push(bid_order.id);
-                } else {
-                    bids_to_modify.push((bid_order.id, bid_allocs[bid_idx]));
+                if remaining_qty > 0 && *current_bid_allocation - current_fillable_qty == 0 {
+                    println!("Advancing bid alloc iter to next item");
+                    current_bid_alloc = bid_alloc_iter.next().unwrap();
+                    current_bid_order = bid_book_iter.next().unwrap();
                 }
-
-                if ask_allocs[ask_idx] == 0 {
-                    asks_to_cancel.push(ask_order.id);
-                } else {
-                    asks_to_modify.push((ask_order.id, ask_allocs[ask_idx]));
-                }
-
-                if bid_allocs[bid_idx] == 0 {
-                    bid_idx += 1;
-                }
-                if ask_allocs[ask_idx] == 0 {
-                    ask_idx += 1;
+                if remaining_qty > 0 && *current_ask_allocation - current_fillable_qty == 0 {
+                    println!("Advancing ask alloc iter to next item");
+                    current_ask_alloc = ask_alloc_iter.next().unwrap();
+                    current_ask_order = ask_book_iter.next().unwrap();
                 }
             }
 
-            bids_to_modify
-                .iter()
-                .for_each(|(id, qty)| order_book.modify_order(BUY, *id, *qty));
-            asks_to_modify
-                .iter()
-                .for_each(|(id, qty)| order_book.modify_order(SELL, *id, *qty));
-            
-            bids_to_cancel.iter().for_each(|id| {
-                order_book.remove_order(CancelOrder {
-                    client_id: 0,
-                    action: BUY,
-                    id: *id,
-                });
+            // cleanup
+            bid_allocs.iter().for_each(|(order_id, qty, allocation)| {
+                if (qty - allocation <= 0) {
+                    order_book.remove_order(CancelOrder {
+                        client_id: 0,
+                        action: BUY,
+                        id: *order_id,
+                    });
+                } else {
+                    order_book.modify_order(BUY, *order_id, qty - allocation)
+                }
             });
-            asks_to_cancel.iter().for_each(|id| {
-                order_book.remove_order(CancelOrder {
-                    client_id: 0,
-                    action: SELL,
-                    id: *id,
-                });
+
+            ask_allocs.iter().for_each(|(order_id, qty, allocation)| {
+                if (qty - allocation <= 0) {
+                    order_book.remove_order(CancelOrder {
+                        client_id: 0,
+                        action: SELL,
+                        id: *order_id,
+                    });
+                } else {
+                    order_book.modify_order(SELL, *order_id, qty - allocation)
+                }
             });
         }
 
@@ -170,44 +139,49 @@ impl MatchStrategy for ProRataMatchStrategy {
 }
 
 impl ProRataMatchStrategy {
-    fn pro_rata_allocate_fills(
-        bid_order_list_entry: &mut OccupiedEntry<Price, LimitOrderList>,
-        total_bid_qty_at_price: u32,
+    fn pro_rata_allocate_fills_remainder_to_largest_party(
+        order_list_entry: &mut OccupiedEntry<Price, LimitOrderList>,
+        total_qty_at_price: u32,
         matched_qty: u32,
-    ) -> Vec<u32> {
-        bid_order_list_entry
+    ) -> Vec<(u32, u32, u32)> {
+        let mut largest_allocation = 0;
+        let mut max_allocation_idx = 0;
+
+        let mut pro_rata_allocations: Vec<(u32, u32, u32)> = order_list_entry
             .get()
             .iter()
-            .map(|o| {
-                (o.qty as f64 * matched_qty as f64 / total_bid_qty_at_price as f64).floor() as u32
+            .enumerate()
+            .map(|(idx, o)| {
+                let allocation =
+                    (o.qty as f64 * matched_qty as f64 / total_qty_at_price as f64).floor() as u32;
+
+                if allocation > largest_allocation {
+                    println!("Max {}", allocation);
+                    largest_allocation = allocation;
+                    max_allocation_idx = idx;
+                }
+
+                return (o.id, o.qty, allocation);
             })
-            .collect()
+            .collect();
+
+        let remainder_qty = matched_qty
+            - pro_rata_allocations
+                .iter()
+                .map(|(_order_id, qty, allocation)| allocation)
+                .sum::<u32>();
+
+        if remainder_qty > 0 {
+            pro_rata_allocations[max_allocation_idx].2 =
+                pro_rata_allocations[max_allocation_idx].2 + remainder_qty;
+        }
+
+        pro_rata_allocations
     }
 
-    fn check_for_allocation_rounding_errors(
+    fn calculate_total_qty_at_level(
         order_list_entry: &mut OccupiedEntry<Price, LimitOrderList>,
-        total_order_list_qty: u32,
-        matched_qty: u32,
-        pro_rata_allocation: &mut Vec<u32>,
     ) -> u32 {
-        let leftover_unallocated_qty = matched_qty - pro_rata_allocation.iter().sum::<u32>();
-
-        if leftover_unallocated_qty > 0 {
-            let mut remainders: Vec<(usize, f64)> = order_list_entry
-                .get()
-                .iter()
-                .enumerate()
-                .map(|(i, o)| {
-                    let frac = (o.qty as f64 * matched_qty as f64 / total_order_list_qty as f64)
-                        - pro_rata_allocation[i] as f64;
-                    (i, frac)
-                })
-                .collect();
-            remainders.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-            for i in 0..leftover_unallocated_qty as usize {
-                pro_rata_allocation[remainders[i].0] += 1;
-            }
-        }
-        leftover_unallocated_qty
+        order_list_entry.get().iter().map(|order| order.qty).sum()
     }
 }
