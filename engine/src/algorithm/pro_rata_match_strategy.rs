@@ -99,6 +99,9 @@ impl MatchStrategy for ProRataMatchStrategy {
             let mut asks_to_modify: Vec<(u32, u32)> = Vec::new();
 
             while let (Some(bid_order), Some(ask_order)) = (bid_iter.next(), ask_iter.next()) {
+                let ask_qty = ask_order.qty;
+                let bid_qty = bid_order.qty;
+                
                 let fill_qty = bid_allocs[bid_idx].min(ask_allocs[ask_idx]);
                 if fill_qty == 0 {
                     continue;
@@ -113,9 +116,12 @@ impl MatchStrategy for ProRataMatchStrategy {
                     execution_time: epoch_nanos(),
                 };
 
+                num_executions += 1;
+
                 bid_allocs[bid_idx] -= fill_qty;
                 ask_allocs[ask_idx] -= fill_qty;
 
+                // bug here! todo()
                 if bid_allocs[bid_idx] == 0 {
                     bids_to_cancel.push(bid_order.id);
                 } else {
@@ -142,6 +148,7 @@ impl MatchStrategy for ProRataMatchStrategy {
             asks_to_modify
                 .iter()
                 .for_each(|(id, qty)| order_book.modify_order(SELL, *id, *qty));
+            
             bids_to_cancel.iter().for_each(|id| {
                 order_book.remove_order(CancelOrder {
                     client_id: 0,
