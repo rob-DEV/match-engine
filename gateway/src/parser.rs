@@ -35,12 +35,12 @@ impl MessageConverter {
                 let fix_msg_qty = fix_msg.fv::<u32>(fix44::ORDER_QTY).unwrap();
                 let fix_msg_side = fix_msg.fv::<&str>(fix44::SIDE).unwrap();
 
-                let mut order_action = Side::BUY;
-                if fix_msg_side == "2" { order_action = Side::SELL; }
+                let mut order_side = Side::BUY;
+                if fix_msg_side == "2" { order_side = Side::SELL; }
 
                 GatewayMessage::LimitOrder(NewOrder {
                     client_id,
-                    order_action,
+                    order_side,
                     px: fix_msg_px,
                     qty: fix_msg_qty,
                     timestamp: epoch_nanos()
@@ -50,12 +50,12 @@ impl MessageConverter {
                 let fix_msg_side = fix_msg.fv::<&str>(fix44::SIDE).unwrap();
                 let fix_msg_order_id = fix_msg.fv::<u32>(fix44::ORDER_ID).unwrap();
 
-                let mut order_action = Side::BUY;
-                if fix_msg_side == "2" { order_action = Side::SELL; }
+                let mut order_side = Side::BUY;
+                if fix_msg_side == "2" { order_side = Side::SELL; }
 
                 GatewayMessage::CancelOrder(CancelOrder {
                     client_id,
-                    order_action,
+                    order_side,
                     order_id: fix_msg_order_id,
                 })
             }

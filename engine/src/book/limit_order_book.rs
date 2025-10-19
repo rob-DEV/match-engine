@@ -206,7 +206,7 @@
 //         let buy_order = LimitOrder {
 //             client_id: 0,
 //             id: 1,
-//             action: Side::BUY,
+//             side: Side::BUY,
 //             px: 1,
 //             qty: 10,
 //             placed_time: 0,
@@ -215,7 +215,7 @@
 //         let sell_order = LimitOrder {
 //             client_id: 0,
 //             id: 1,
-//             action: Side::SELL,
+//             side: Side::SELL,
 //             px: 1,
 //             qty: 10,
 //             placed_time: 0,
@@ -238,7 +238,7 @@
 //         let buy_order = LimitOrder {
 //             client_id: 0,
 //             id: 1,
-//             action: Side::BUY,
+//             side: Side::BUY,
 //             px: 1,
 //             qty: 10,
 //             placed_time: 0,
@@ -247,7 +247,7 @@
 //         let sell_order = LimitOrder {
 //             client_id: 0,
 //             id: 2,
-//             action: Side::SELL,
+//             side: Side::SELL,
 //             px: 1,
 //             qty: 10,
 //             placed_time: 0,
@@ -256,7 +256,7 @@
 //         let latter_sell_order = LimitOrder {
 //             client_id: 0,
 //             id: 3,
-//             action: Side::SELL,
+//             side: Side::SELL,
 //             px: 1,
 //             qty: 10,
 //             placed_time: 0,
@@ -280,7 +280,7 @@
 //         let buy_order = LimitOrder {
 //             client_id: 0,
 //             id: 1,
-//             action: Side::BUY,
+//             side: Side::BUY,
 //             px: 1,
 //             qty: 10,
 //             placed_time: 0,
@@ -289,7 +289,7 @@
 //         let sell_order = LimitOrder {
 //             client_id: 0,
 //             id: 1,
-//             action: Side::SELL,
+//             side: Side::SELL,
 //             px: 1,
 //             qty: 6,
 //             placed_time: 0,
@@ -312,7 +312,7 @@
 //         let buy_order = LimitOrder {
 //             client_id: 0,
 //             id: 1,
-//             action: Side::BUY,
+//             side: Side::BUY,
 //             px: 1,
 //             qty: 4,
 //             placed_time: 0,
@@ -321,7 +321,7 @@
 //         let sell_order = LimitOrder {
 //             client_id: 0,
 //             id: 1,
-//             action: Side::SELL,
+//             side: Side::SELL,
 //             px: 1,
 //             qty: 10,
 //             placed_time: 0,
@@ -344,7 +344,7 @@
 //         let buy_order = LimitOrder {
 //             client_id: 0,
 //             id: 1,
-//             action: Side::BUY,
+//             side: Side::BUY,
 //             px: 1,
 //             qty: 4,
 //             placed_time: 0,
@@ -353,7 +353,7 @@
 //         let sell_order = LimitOrder {
 //             client_id: 0,
 //             id: 1,
-//             action: Side::SELL,
+//             side: Side::SELL,
 //             px: 1,
 //             qty: 10,
 //             placed_time: 0,
@@ -366,7 +366,7 @@
 //         let cancel_order = CancelOrder {
 //             client_id: 0,
 //             id: 1,
-//             action: Side::SELL,
+//             side: Side::SELL,
 //         };
 //         orderbook.remove_order(cancel_order);
 //

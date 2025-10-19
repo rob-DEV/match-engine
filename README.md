@@ -44,10 +44,10 @@ match).
 Enter input:
 b 30 30
 Enter input:
-Response: NewOrderAck(NewOrderAck { client_id: 492777011, action: BUY, order_id: 580547781, px: 30, qty: 30, ack_time: 1741038358998959369 })
+Response: NewOrderAck(NewOrderAck { client_id: 492777011, side: BUY, order_id: 580547781, px: 30, qty: 30, ack_time: 1741038358998959369 })
 s 30 30
 Enter input:
-Response: NewOrderAck(NewOrderAck { client_id: 492777011, action: SELL, order_id: 3939795387, px: 30, qty: 30, ack_time: 1741038362923362442 })
+Response: NewOrderAck(NewOrderAck { client_id: 492777011, side: SELL, order_id: 3939795387, px: 30, qty: 30, ack_time: 1741038362923362442 })
 Response: TradeExecution(TradeExecution { trade_id: 2669498913, trade_seq: 1, bid_client_id: 492777011, ask_client_id: 492777011, bid_order_id: 580547781, ask_order_id: 3939795387, fill_qty: 30, px: 30, execution_time: 1741038362923374924 })
 Response: TradeExecution(TradeExecution { trade_id: 2669498913, trade_seq: 1, bid_client_id: 492777011, ask_client_id: 492777011, bid_order_id: 580547781, ask_order_id: 3939795387, fill_qty: 30, px: 30, execution_time: 1741038362923374924 })
 ```

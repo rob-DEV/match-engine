@@ -18,7 +18,7 @@ pub struct MatchEngine {
     symbol: String,
     isin: String,
     book: OptLimitOrderBook,
-    match_strategy: ProRataMatchStrategy,
+    match_strategy: FifoMatchStrategy,
 }
 
 impl MatchEngine {
@@ -30,7 +30,7 @@ impl MatchEngine {
             symbol,
             isin,
             book,
-            match_strategy: ProRataMatchStrategy,
+            match_strategy: FifoMatchStrategy,
         }
     }
 
@@ -106,7 +106,7 @@ impl MatchEngine {
                             sequence_number: engine_msg_out_seq_num,
                             message: EngineMessage::NewOrderAck(NewOrderAck {
                                 client_id: new_order.client_id,
-                                action: new_order.action,
+                                side: new_order.side,
                                 order_id: new_order.id,
                                 px: new_order.px,
                                 qty: new_order.qty,

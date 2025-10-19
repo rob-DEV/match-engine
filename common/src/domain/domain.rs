@@ -9,7 +9,7 @@ pub enum Side {
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct NewOrder {
     pub client_id: u32,
-    pub order_action: Side,
+    pub order_side: Side,
     pub px: u32,
     pub qty: u32,
     pub timestamp: u64
@@ -18,14 +18,14 @@ pub struct NewOrder {
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct CancelOrder {
     pub client_id: u32,
-    pub order_action: Side,
+    pub order_side: Side,
     pub order_id: u32,
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct NewOrderAck {
     pub client_id: u32,
-    pub action: Side,
+    pub side: Side,
     pub order_id: u32,
     pub px: u32,
     pub qty: u32,

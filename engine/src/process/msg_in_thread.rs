@@ -42,7 +42,7 @@ fn multicast_receiver_to_engine_msg_in(udp_socket: &UdpSocket, oe_tx: &Sender<Or
                 .send(Order::New(LimitOrder {
                     client_id: new.client_id,
                     id: random::<u32>(),
-                    action: new.order_action,
+                    side: new.order_side,
                     px: new.px,
                     qty: new.qty,
                     placed_time: epoch_nanos(),
@@ -51,7 +51,7 @@ fn multicast_receiver_to_engine_msg_in(udp_socket: &UdpSocket, oe_tx: &Sender<Or
             EngineMessage::CancelOrder(cancel) => oe_tx
                 .send(Order::Cancel(CancelOrder {
                     client_id: cancel.client_id,
-                    action: cancel.order_action,
+                    side: cancel.order_side,
                     id: cancel.order_id,
                 }))
                 .unwrap(),

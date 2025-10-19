@@ -1,97 +1,66 @@
 use crate::book::book::Book;
 use common::domain::domain::Side;
+use common::domain::domain::Side::{BUY, SELL};
 use common::domain::order::{CancelOrder, LimitOrder};
-use std::collections::{BTreeMap, HashMap, LinkedList};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 
 pub type Price = u32;
-pub type LimitOrderList = LinkedList<LimitOrder>;
+pub type LimitOrderList = Vec<LimitOrder>;
 
-pub struct HalfBook {
-    pub price_tree_map: BTreeMap<Price, LimitOrderList>,
+pub struct BookSide {
+    pub price_level_map: BTreeMap<Price, VecDeque<u32>>,
     pub order_map: HashMap<u32, LimitOrder>,
 
+    pub side: Side,
     pub volume: u32,
     pub num_orders: u32,
 }
-impl HalfBook {
-    pub fn new() -> Self {
+impl BookSide {
+    pub fn new(side: Side) -> Self {
         Self {
-            price_tree_map: BTreeMap::new(),
+            price_level_map: BTreeMap::new(),
             order_map: HashMap::with_capacity(1_000_000),
+            side,
             volume: 0,
             num_orders: 0,
         }
     }
 
-    pub fn add_price(&mut self, px: Price) {
-        let order_list = LimitOrderList::new();
-        self.price_tree_map.insert(px, order_list);
-    }
-
-    pub fn remove_price(&mut self, px: Price) {
-        self.price_tree_map.remove(&px);
-    }
-
-    pub fn price_exists(&self, px: Price) -> bool {
-        self.price_tree_map.contains_key(&px)
-    }
-
     pub fn add_order(&mut self, order: LimitOrder) {
-        let order_id = order.id;
-        let order_px = order.px;
-        let order_qty = order.qty;
+        self.price_level_map
+            .entry(order.px)
+            .or_default()
+            .push_back(order.id); // FIFO: push to back
+        self.order_map.insert(order.id, order);
 
-        if !self.price_exists(order_px) {
-            self.add_price(order_px);
-        }
-
-        self.price_tree_map
-            .get_mut(&order_px)
-            .unwrap()
-            .push_back(order);
-        self.order_map.insert(order_id, order);
         self.num_orders += 1;
-        self.volume += order_qty;
+        self.volume += order.qty;
     }
 
     pub fn modify_order(&mut self, id: u32, new_qty: u32) {
-        let order = self.order_map.get_mut(&id);
-
-        match order {
-            Some(order) => {
-                self.volume -= (order.qty - new_qty);
-                order.qty = new_qty;
-
-                if let Some(priceList) = self.price_tree_map.get_mut(&order.px) {
-                    for price_tree_order in priceList {
-                        if price_tree_order.id == id {
-                            price_tree_order.qty = new_qty;
-                            break;
-                        }
-                    }
-                }
-            }
-            None => {}
+        if let Some(order) = self.order_map.get_mut(&id) {
+            self.volume = self.volume - order.qty + new_qty;
+            order.qty = new_qty;
         }
     }
 
     pub fn remove_order(&mut self, id: u32) {
-        let order = self.order_map.get(&id);
-
-        match order {
-            Some(order) => {
-                let order_px = order.px;
-                self.volume -= order.qty;
-                self.num_orders -= 1;
-
-                if self.price_tree_map.get(&order_px).is_none() {
-                    self.remove_price(order_px);
+        if let Some(order) = self.order_map.remove(&id) {
+            if let Some(level) = self.price_level_map.get_mut(&order.px) {
+                level.retain(|&x| x != id);
+                if level.is_empty() {
+                    self.price_level_map.remove(&order.px);
                 }
-
-                self.price_tree_map.remove(&order_px);
-                self.order_map.remove(&id);
             }
-            None => {}
+            self.volume -= order.qty;
+            self.num_orders -= 1;
+        }
+    }
+
+    pub fn best_price(&self) -> Option<Price> {
+        match self.side {
+            Side::BUY => self.price_level_map.keys().next_back().copied(),
+            Side::SELL => self.price_level_map.keys().next().copied(),
         }
     }
 
@@ -100,22 +69,22 @@ impl HalfBook {
     }
 }
 pub struct OptLimitOrderBook {
-    pub asks: HalfBook,
-    pub bids: HalfBook,
+    pub asks: BookSide,
+    pub bids: BookSide,
 }
 
 impl OptLimitOrderBook {
     pub fn new() -> Self {
         Self {
-            asks: HalfBook::new(),
-            bids: HalfBook::new(),
+            asks: BookSide::new(SELL),
+            bids: BookSide::new(BUY),
         }
     }
 }
 
 impl Book for OptLimitOrderBook {
     fn add_order(&mut self, order: LimitOrder) {
-        match order.action {
+        match order.side {
             Side::BUY => {
                 self.bids.add_order(order);
             }
@@ -125,8 +94,8 @@ impl Book for OptLimitOrderBook {
         };
     }
 
-    fn modify_order(&mut self, action: Side, order_id: u32, new_qty: u32) {
-        match action {
+    fn modify_order(&mut self, side: Side, order_id: u32, new_qty: u32) {
+        match side {
             Side::BUY => {
                 self.bids.modify_order(order_id, new_qty);
             }
@@ -137,7 +106,7 @@ impl Book for OptLimitOrderBook {
     }
 
     fn remove_order(&mut self, order: CancelOrder) -> bool {
-        match order.action {
+        match order.side {
             Side::BUY => {
                 self.bids.remove_order(order.id);
             }

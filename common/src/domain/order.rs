@@ -11,7 +11,7 @@ pub enum Order {
 pub struct LimitOrder {
     pub client_id: u32,
     pub id: u32,
-    pub action: Side,
+    pub side: Side,
     pub px: u32,
     pub qty: u32,
     pub placed_time: u64,
@@ -20,7 +20,7 @@ pub struct LimitOrder {
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct CancelOrder {
     pub client_id: u32,
-    pub action: Side,
+    pub side: Side,
     pub id: u32,
 }
 
@@ -36,7 +36,7 @@ impl LimitOrder {
 
 impl PartialOrd for LimitOrder {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        match (&self.action, &other.action) {
+        match (&self.side, &other.side) {
             (&Side::BUY, &Side::BUY) => self.partial_cmp_buy(other),
             (&Side::SELL, &Side::SELL) => self.partial_cmp_sell(other),
             (_, _) => None,
