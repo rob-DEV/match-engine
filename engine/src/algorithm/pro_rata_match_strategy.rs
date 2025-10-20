@@ -1,12 +1,11 @@
 use crate::algorithm::match_strategy::MatchStrategy;
+use crate::algorithm::algo_utils::{best_prices_cross, build_fill_execution};
 use crate::book::book::Book;
-use crate::book::order_book::{LimitOrderBook, Price};
+use crate::book::order_book::LimitOrderBook;
 use crate::book::price_level::PriceLevel;
 use common::domain::domain::Side;
 use common::domain::execution::Execution;
 use common::domain::order::LimitOrder;
-use common::util::time::epoch_nanos;
-use rand::random;
 use std::collections::HashMap;
 
 pub struct ProRataMatchStrategy;
@@ -34,9 +33,7 @@ impl MatchStrategy for ProRataMatchStrategy {
                 break; // No liquidity - skip match, add to orderbook
             };
 
-            let px_cross = Self::best_prices_cross(order, best_px);
-
-            if px_cross {
+            if best_prices_cross(order, best_px) {
                 let opposite_price_level =
                     match opposite_book_side.price_level_map.get_mut(&best_px) {
                         Some(l) => l,
@@ -83,7 +80,7 @@ impl MatchStrategy for ProRataMatchStrategy {
 
                     // Record execution
                     mutable_execution_buffer[num_executions] =
-                        Self::build_fill_execution(order, resting_order, fill_qty);
+                        build_fill_execution(order, resting_order, fill_qty);
 
                     // println!("Execution: {:?}", mutable_execution_buffer[num_executions]);
                     remaining_qty -= fill_qty;
@@ -125,14 +122,6 @@ impl MatchStrategy for ProRataMatchStrategy {
 }
 
 impl ProRataMatchStrategy {
-    fn best_prices_cross(order: &mut LimitOrder, best_px: Price) -> bool {
-        let px_cross = match order.side {
-            Side::BUY => order.px >= best_px,
-            Side::SELL => order.px <= best_px,
-        };
-        px_cross
-    }
-
     fn pro_rata_allocate_fills(
         price_level: &PriceLevel,
         order_map: &HashMap<u32, LimitOrder>,
@@ -169,29 +158,5 @@ impl ProRataMatchStrategy {
         assert_eq!(allocations.iter().sum::<u32>(), matched_qty);
 
         allocations
-    }
-
-    fn build_fill_execution(
-        order: &mut LimitOrder,
-        resting_order: &mut LimitOrder,
-        fill_qty: u32,
-    ) -> Execution {
-        let bid = match order.side {
-            Side::BUY => order.clone(),
-            Side::SELL => resting_order.clone(),
-        };
-
-        let ask = match order.side {
-            Side::BUY => resting_order.clone(),
-            Side::SELL => order.clone(),
-        };
-
-        Execution {
-            id: random::<u32>(),
-            fill_qty,
-            bid,
-            ask,
-            execution_time: epoch_nanos(),
-        }
     }
 }

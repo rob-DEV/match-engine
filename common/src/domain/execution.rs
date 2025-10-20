@@ -1,5 +1,4 @@
 use std::fmt::{Debug, Formatter};
-
 use crate::domain::order::LimitOrder;
 
 pub struct Execution {
