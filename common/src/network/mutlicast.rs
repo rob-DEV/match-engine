@@ -19,7 +19,7 @@ pub fn multicast_receiver(port: u16) -> UdpSocket {
     std::net::UdpSocket::from(socket)
 }
 
-pub fn multicast_sender(port: u16) -> UdpSocket {
+pub fn multicast_sender() -> UdpSocket {
     let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
     socket.set_reuse_address(true).unwrap();
     socket.set_reuse_port(true).unwrap();

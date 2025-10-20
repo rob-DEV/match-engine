@@ -10,7 +10,7 @@ pub fn initialize_engine_msg_in_message_submitter(
     engine_msg_in_port: u16,
     rx: Receiver<GatewayMessage>,
 ) -> Result<(), Box<dyn Error>> {
-    let udp_socket = multicast_sender(engine_msg_in_port);
+    let udp_socket = multicast_sender();
     let send_addr = "239.255.0.1:3000".parse::<SocketAddr>().unwrap();
 
     println!(

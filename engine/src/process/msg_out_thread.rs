@@ -9,7 +9,7 @@ pub fn initialize_engine_msg_out_thread(rx: Receiver<SequencedEngineMessage>) ->
         "Initializing Engine MSG_OUT multicast on port {}",
         *ENGINE_MSG_OUT_PORT
     );
-    let msg_out_socket = multicast_sender(*ENGINE_MSG_OUT_PORT);
+    let msg_out_socket = multicast_sender();
     engine_msg_out_to_multicast(&rx, &msg_out_socket)
 }
 

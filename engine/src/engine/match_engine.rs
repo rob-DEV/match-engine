@@ -1,5 +1,5 @@
-use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
+use crate::algorithm::pro_rata_match_strategy::ProRataMatchStrategy;
 use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
 use common::domain::domain::{CancelOrderAck, NewOrderAck, TradeExecution};
@@ -17,19 +17,19 @@ pub struct MatchEngine {
     symbol: String,
     isin: String,
     book: LimitOrderBook,
-    match_strategy: FifoMatchStrategy,
+    match_strategy: ProRataMatchStrategy,
 }
 
 impl MatchEngine {
     pub fn new(symbol: String, isin: String) -> Self {
-        let mut book = LimitOrderBook::new();
+        let book = LimitOrderBook::new();
 
         println!("--- Initializing engine instance for {symbol} (ISIN:{isin}) ---");
         Self {
             symbol,
             isin,
             book,
-            match_strategy: FifoMatchStrategy::new(),
+            match_strategy: ProRataMatchStrategy::new(),
         }
     }
 

@@ -46,6 +46,10 @@ impl PriceLevel {
         self.order_ids.pop_front()
     }
 
+    pub fn order_ids(&self) -> impl Iterator<Item = &u32> {
+        self.order_ids.iter()
+    }
+    
     pub fn volume(&self) -> u32 {
         self.total_qty
     }
