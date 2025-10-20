@@ -1482,7 +1482,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "oe_client"
+name = "oe-client"
 version = "0.1.0"
 dependencies = [
  "clap",
