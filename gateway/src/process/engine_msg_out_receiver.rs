@@ -1,7 +1,7 @@
 use common::domain::domain::TradeExecution;
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
+use common::network::mutlicast::multicast_receiver;
 use common::network::network_constants::MAX_UDP_PACKET_SIZE;
-use common::network::udp_socket::multicast_udp_socket;
 use std::collections::HashMap;
 use std::error::Error;
 use std::sync::mpsc::Sender;
@@ -11,7 +11,7 @@ pub fn initialize_engine_msg_out_receiver(
     engine_msg_out_port: u16,
     session_data_tx: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>,
 ) -> Result<(), Box<dyn Error>> {
-    let udp_socket = multicast_udp_socket(engine_msg_out_port, true);
+    let udp_socket = multicast_receiver(engine_msg_out_port);
     let mut buffer = [0; MAX_UDP_PACKET_SIZE];
 
     println!(
@@ -30,14 +30,12 @@ pub fn initialize_engine_msg_out_receiver(
                 let mut session_data = session_data_tx.lock().unwrap();
                 match outbound_message_type {
                     EngineMessage::NewOrderAck(new_ack) => {
-                        // println!("New order ack: {:?}", new_ack);
                         let client_id = new_ack.client_id;
 
                         let session_state = session_data.get_mut(&client_id).unwrap();
                         session_state.send(outbound_engine_message.message).unwrap()
                     }
                     EngineMessage::CancelOrderAck(cancel_ack) => {
-                        // println!("Cancel order ack: {:?}", cancel_ack);
                         let client_id = cancel_ack.client_id;
                         let session_state = session_data.get_mut(&client_id).unwrap();
                         session_state.send(outbound_engine_message.message).unwrap()
@@ -58,11 +56,9 @@ pub fn initialize_engine_msg_out_receiver(
                             execution_time: execution.execution_time,
                         });
 
-                        // println!("Trade execution: {:?}", execution);
                         let bid_tx = session_data.get(&bid_client_id).unwrap();
                         bid_tx.send(outbound_engine_message.message).unwrap();
 
-                        // println!("Trade execution: {:?}", ask_exec);
                         let ask_tx = session_data.get(&ask_client_id).unwrap();
                         ask_tx.send(ask_exec).unwrap();
                     }

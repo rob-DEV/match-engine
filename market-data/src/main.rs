@@ -1,6 +1,6 @@
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
+use common::network::mutlicast::multicast_receiver;
 use common::network::network_constants::MAX_UDP_PACKET_SIZE;
-use common::network::udp_socket::multicast_udp_socket;
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -8,7 +8,7 @@ lazy_static! {
 }
 
 fn main() {
-    let udp_socket = multicast_udp_socket(*ENGINE_MSG_OUT_PORT, true);
+    let udp_socket = multicast_receiver(*ENGINE_MSG_OUT_PORT);
     let mut buffer = [0; MAX_UDP_PACKET_SIZE];
 
     println!(
@@ -26,13 +26,22 @@ fn main() {
 
                 match outbound_message_type {
                     EngineMessage::NewOrderAck(new_ack) => {
-                        println!("{:?}", new_ack);
+                        println!(
+                            "{} -> {:?}",
+                            outbound_engine_message.sequence_number, new_ack
+                        );
                     }
                     EngineMessage::CancelOrderAck(cancel_ack) => {
-                        println!("{:?}", cancel_ack);
+                        println!(
+                            "{} -> {:?}",
+                            outbound_engine_message.sequence_number, cancel_ack
+                        );
                     }
                     EngineMessage::TradeExecution(execution) => {
-                        println!("{:?}", execution);
+                        println!(
+                            "{} -> {:?}",
+                            outbound_engine_message.sequence_number, execution
+                        );
                     }
                     _ => {
                         unimplemented!()

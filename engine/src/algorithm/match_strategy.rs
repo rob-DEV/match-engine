@@ -1,10 +1,13 @@
-use crate::book::opt_limit_order_book::OptLimitOrderBook;
+use crate::book::order_book::LimitOrderBook;
 use common::domain::execution::Execution;
+use common::domain::order::LimitOrder;
 
 pub trait MatchStrategy {
+    fn new() -> Self;
     fn match_orders(
-        &self,
-        order_book: &mut OptLimitOrderBook,
+        &mut self,
+        order_book: &mut LimitOrderBook,
+        order: &mut LimitOrder,
         mutable_execution_buffer: &mut [Execution],
     ) -> usize;
 }

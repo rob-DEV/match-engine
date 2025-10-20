@@ -1,36 +1,35 @@
 use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::book::Book;
-use crate::book::opt_limit_order_book::OptLimitOrderBook;
+use crate::book::order_book::LimitOrderBook;
 use common::domain::domain::{CancelOrderAck, NewOrderAck, TradeExecution};
 use common::domain::execution::Execution;
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
-use common::domain::order::Order;
+use common::domain::order::{LimitOrder, Order};
 use common::memory::memory::uninitialized_arr;
 use common::util::time::epoch_nanos;
-use std::sync::mpsc::Sender;
-use std::sync::mpsc::{Receiver, TryRecvError};
-use crate::algorithm::pro_rata_match_strategy::ProRataMatchStrategy;
+use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Sender, TryRecvError};
 
 pub const MAX_EXECUTIONS_PER_CYCLE: usize = 4096;
 
 pub struct MatchEngine {
     symbol: String,
     isin: String,
-    book: OptLimitOrderBook,
+    book: LimitOrderBook,
     match_strategy: FifoMatchStrategy,
 }
 
 impl MatchEngine {
     pub fn new(symbol: String, isin: String) -> Self {
-        let mut book = OptLimitOrderBook::new();
+        let mut book = LimitOrderBook::new();
 
         println!("--- Initializing engine instance for {symbol} (ISIN:{isin}) ---");
         Self {
             symbol,
             isin,
             book,
-            match_strategy: FifoMatchStrategy,
+            match_strategy: FifoMatchStrategy::new(),
         }
     }
 
@@ -39,84 +38,51 @@ impl MatchEngine {
         order_tx: Receiver<Order>,
         engine_msg_out_tx: Sender<SequencedEngineMessage>,
     ) -> ! {
-        let order_cycle_msg_out_tx = engine_msg_out_tx.clone();
         let match_cycle_msg_out_tx = engine_msg_out_tx.clone();
 
         let mut engine_msg_out_seq_num: u32 = 1;
+        let mut engine_execution_seq_num = 1;
 
-        let mut initial_order_seq_num: u32 = 1;
-        let mut initial_execution_seq_num: u32 = 1;
-
-        let mut timer_epoch = epoch_nanos();
-        let mut order_seq_num = 1;
-        let mut execution_sequence_number = 1;
+        // Per second statistics
+        let mut statistic_print_per_second_clock = epoch_nanos();
+        let mut orders_per_second = 0;
+        let mut executions_per_second = 0;
 
         loop {
-            let cycle_start_epoch = epoch_nanos();
+            let cycle_start_epoch_statistic = epoch_nanos();
 
             // oe phase
-            (engine_msg_out_seq_num, initial_order_seq_num) = self.order_entry_cycle(
-                engine_msg_out_seq_num,
-                initial_order_seq_num,
-                &order_tx,
-                &order_cycle_msg_out_tx,
-            );
-
-            // match phase
-            (engine_msg_out_seq_num, initial_execution_seq_num) = self.match_cycle(
-                engine_msg_out_seq_num,
-                initial_execution_seq_num,
-                &match_cycle_msg_out_tx,
-            );
-
-            if epoch_nanos() - timer_epoch > 1000 * 1000 * 1000 {
-                let nanos = epoch_nanos();
-                println!(
-                    "nanos: {} ord: {} exe: {} book: {} bid_v: {} ask_v: {} volume: {}",
-                    nanos - cycle_start_epoch,
-                    initial_order_seq_num - order_seq_num,
-                    initial_execution_seq_num - execution_sequence_number,
-                    self.book.orders_on_book(),
-                    self.book.bid_volume(),
-                    self.book.ask_volume(),
-                    self.book.total_volume()
-                );
-                timer_epoch = nanos;
-                order_seq_num = initial_order_seq_num;
-                execution_sequence_number = initial_execution_seq_num;
-            }
-        }
-    }
-
-    fn order_entry_cycle(
-        &mut self,
-        mut engine_msg_out_seq_num: u32,
-        mut order_seq_num: u32,
-        order_tx: &Receiver<Order>,
-        engine_msg_out_tx: &Sender<SequencedEngineMessage>,
-    ) -> (u32, u32) {
-        let inbound_order = order_tx.try_recv();
-        match inbound_order {
-            Ok(order) => {
-                let book = &mut self.book;
-                let out = match order {
-                    Order::New(new_order) => {
-                        book.add_order(new_order);
-                        SequencedEngineMessage {
+            if let Some(inbound_order) = self.receive_inbound_order(&order_tx) {
+                match inbound_order {
+                    Order::New(mut limit_order) => {
+                        let out = SequencedEngineMessage {
                             sequence_number: engine_msg_out_seq_num,
                             message: EngineMessage::NewOrderAck(NewOrderAck {
-                                client_id: new_order.client_id,
-                                side: new_order.side,
-                                order_id: new_order.id,
-                                px: new_order.px,
-                                qty: new_order.qty,
+                                client_id: limit_order.client_id,
+                                side: limit_order.side,
+                                order_id: limit_order.id,
+                                px: limit_order.px,
+                                qty: limit_order.qty,
                                 ack_time: epoch_nanos(),
                             }),
-                        }
+                        };
+                        engine_msg_out_tx.send(out).unwrap();
+                        engine_msg_out_seq_num += 1;
+                        orders_per_second += 1;
+
+                        // match phase
+                        let executions = self.match_inbound_order(
+                            &mut engine_msg_out_seq_num,
+                            &mut engine_execution_seq_num,
+                            &mut limit_order,
+                            &match_cycle_msg_out_tx,
+                        );
+
+                        executions_per_second += executions;
                     }
                     Order::Cancel(cancel_order) => {
-                        let found = book.remove_order(cancel_order);
-                        SequencedEngineMessage {
+                        let found = self.book.remove_order(cancel_order);
+                        let out = SequencedEngineMessage {
                             sequence_number: engine_msg_out_seq_num,
                             message: EngineMessage::CancelOrderAck(CancelOrderAck {
                                 client_id: cancel_order.client_id,
@@ -124,44 +90,68 @@ impl MatchEngine {
                                 found,
                                 ack_time: epoch_nanos(),
                             }),
-                        }
+                        };
+                        engine_msg_out_tx.send(out).unwrap();
+                        engine_msg_out_seq_num += 1;
+                        orders_per_second += 1;
                     }
-                };
-                engine_msg_out_tx.send(out).unwrap();
-
-                engine_msg_out_seq_num += 1;
-                order_seq_num += 1;
+                }
             }
+
+            if epoch_nanos() - statistic_print_per_second_clock > 1000 * 1000 * 1000 {
+                let nanos = epoch_nanos();
+                println!(
+                    "nanos: {} ord: {} exe: {} book: {} bid_v: {} ask_v: {} volume: {}",
+                    nanos - cycle_start_epoch_statistic,
+                    orders_per_second,
+                    executions_per_second,
+                    self.book.orders_on_book(),
+                    self.book.bid_volume(),
+                    self.book.ask_volume(),
+                    self.book.total_volume()
+                );
+                statistic_print_per_second_clock = nanos;
+                orders_per_second = 0;
+                executions_per_second = 0;
+            }
+        }
+    }
+
+    fn receive_inbound_order(&mut self, order_tx: &Receiver<Order>) -> Option<Order> {
+        let inbound_order = order_tx.try_recv();
+
+        match inbound_order {
+            Ok(order) => Some(order),
             Err(err) => match err {
                 TryRecvError::Disconnected => {
                     panic!("Error order recv disconnected!")
                 }
-                _ => {}
+                _ => None,
             },
         }
-        return (engine_msg_out_seq_num, order_seq_num);
     }
 
-    fn match_cycle(
+    fn match_inbound_order(
         &mut self,
-        mut engine_msg_out_seq_num: u32,
-        mut execution_seq_num: u32,
+        engine_msg_out_seq_num: &mut u32,
+        execution_seq_num: &mut u32,
+        order: &mut LimitOrder,
         engine_msg_out_tx: &Sender<SequencedEngineMessage>,
-    ) -> (u32, u32) {
+    ) -> u32 {
         let mut executions_buf = uninitialized_arr::<Execution, MAX_EXECUTIONS_PER_CYCLE>();
 
-        let num_executions = self
-            .match_strategy
-            .match_orders(&mut self.book, &mut executions_buf);
+        let num_executions =
+            self.match_strategy
+                .match_orders(&mut self.book, order, &mut executions_buf);
 
         for idx in 0..num_executions {
             let execution = &executions_buf[idx];
 
             let outbound_execution_message;
             outbound_execution_message = SequencedEngineMessage {
-                sequence_number: engine_msg_out_seq_num,
+                sequence_number: *engine_msg_out_seq_num,
                 message: EngineMessage::TradeExecution(TradeExecution {
-                    trade_seq: execution_seq_num,
+                    trade_seq: *execution_seq_num,
                     trade_id: execution.id,
                     bid_client_id: execution.bid.client_id,
                     ask_client_id: execution.ask.client_id,
@@ -175,10 +165,10 @@ impl MatchEngine {
 
             engine_msg_out_tx.send(outbound_execution_message).unwrap();
 
-            engine_msg_out_seq_num += 1;
-            execution_seq_num += 1;
+            *engine_msg_out_seq_num += 1;
+            *execution_seq_num += 1;
         }
 
-        return (engine_msg_out_seq_num, execution_seq_num);
+        num_executions as u32
     }
 }
