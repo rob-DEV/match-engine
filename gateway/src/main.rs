@@ -4,15 +4,15 @@ mod parser;
 mod process;
 
 use crate::message::GatewayMessage;
+use crate::process::client_connection_handler::initialize_gateway_session_handler;
 use crate::process::engine_msg_in_submitter::initialize_engine_msg_in_message_submitter;
 use crate::process::engine_msg_out_receiver::initialize_engine_msg_out_receiver;
-use crate::process::gateway_connection_handler::initialize_gateway_session_handler;
 use common::domain::messaging::EngineMessage;
+use dashmap::DashMap;
 use lazy_static::lazy_static;
-use std::collections::HashMap;
 use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{mpsc, Arc, Mutex};
+use std::sync::{mpsc, Arc};
 use std::{env, thread};
 
 lazy_static! {
@@ -44,8 +44,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let (client_msg_tx, client_msg_rx): (Sender<GatewayMessage>, Receiver<GatewayMessage>) =
         mpsc::channel();
 
-    let gateway_to_engine_msg_in_tx =
-        Arc::new(Mutex::new(HashMap::<u32, Sender<EngineMessage>>::new()));
+    let client_msg_in_to_engine_map = Arc::new(DashMap::<u32, Sender<EngineMessage>>::new());
 
     let engine_msg_in_thread = thread::spawn(move || {
         core_affinity::set_for_current(pinned_msg_in_core);
@@ -53,14 +52,15 @@ async fn main() -> Result<(), Box<dyn Error>> {
             .expect("failed to initialize engine MSG_IN thread");
     });
 
-    let thread_session_msg_tx_map = gateway_to_engine_msg_in_tx.clone();
+    let engine_msg_out_map = Arc::clone(&client_msg_in_to_engine_map);
+
     let engine_msg_out_thread = thread::spawn(move || {
         core_affinity::set_for_current(pinned_msg_out_core);
-        initialize_engine_msg_out_receiver(*ENGINE_MSG_OUT_PORT, thread_session_msg_tx_map)
+        initialize_engine_msg_out_receiver(*ENGINE_MSG_OUT_PORT, engine_msg_out_map)
             .expect("failed to initialize engine MSG_OUT thread");
     });
 
-    let thread_session_msg_tx_map = gateway_to_engine_msg_in_tx.clone();
+    let thread_session_msg_tx_map = client_msg_in_to_engine_map.clone();
     initialize_gateway_session_handler(client_msg_tx, thread_session_msg_tx_map)
         .await
         .expect("failed to initialize gateway session handler");

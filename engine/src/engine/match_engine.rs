@@ -1,5 +1,5 @@
+use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
-use crate::algorithm::pro_rata_match_strategy::ProRataMatchStrategy;
 use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
 use common::domain::domain::{CancelOrderAck, NewOrderAck, TradeExecution};
@@ -17,7 +17,7 @@ pub struct MatchEngine {
     symbol: String,
     isin: String,
     book: LimitOrderBook,
-    match_strategy: ProRataMatchStrategy,
+    match_strategy: FifoMatchStrategy,
 }
 
 impl MatchEngine {
@@ -29,7 +29,7 @@ impl MatchEngine {
             symbol,
             isin,
             book,
-            match_strategy: ProRataMatchStrategy::new(),
+            match_strategy: FifoMatchStrategy::new(),
         }
     }
 

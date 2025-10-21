@@ -1,20 +1,17 @@
-use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
-use std::collections::HashMap;
+use crate::client_state::on_client_connection;
+use crate::message::GatewayMessage;
+use crate::GATEWAY_PORT;
 use common::domain::messaging::EngineMessage;
+use dashmap::DashMap;
 use std::error::Error;
 use std::net::SocketAddr;
-use crate::client_state::on_client_connection;
-use crate::GATEWAY_PORT;
-use crate::message::GatewayMessage;
-use crate::parser::MessageConverter;
+use std::sync::mpsc::Sender;
+use std::sync::Arc;
 
 pub async fn initialize_gateway_session_handler(
     inbound_engine_message_tx: Sender<GatewayMessage>,
-    session_msg_tx_map: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>,
+    session_msg_tx_map: Arc<DashMap<u32, Sender<EngineMessage>>>,
 ) -> Result<(), Box<dyn Error>> {
-    // Shared for now
-    let message_converter = Arc::new(Mutex::new(MessageConverter::new()));
     let tcp_listener =
         tokio::net::TcpListener::bind(SocketAddr::from(([0, 0, 0, 0], *GATEWAY_PORT))).await?;
 
@@ -22,14 +19,12 @@ pub async fn initialize_gateway_session_handler(
 
     loop {
         let connection = tcp_listener.accept().await?;
-        let task_message_converter = message_converter.clone();
         let task_inbound_engine_message_tx = inbound_engine_message_tx.clone();
         let task_session_msg_tx_map = session_msg_tx_map.clone();
 
         tokio::spawn(async move {
             on_client_connection(
                 connection,
-                task_message_converter,
                 task_inbound_engine_message_tx,
                 task_session_msg_tx_map,
             )

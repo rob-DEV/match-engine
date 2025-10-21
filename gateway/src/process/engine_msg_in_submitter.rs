@@ -1,5 +1,6 @@
 use crate::message::GatewayMessage;
 use crate::ENGINE_MSG_IN_PORT;
+use bitcode::Buffer;
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
 use common::network::mutlicast::multicast_sender;
 use std::error::Error;
@@ -19,6 +20,8 @@ pub fn initialize_engine_msg_in_message_submitter(
     );
 
     let mut sequence = 1;
+    let mut msg_in_encoding_buffer = Buffer::new();
+
     loop {
         while let Ok(inbound_engine_message) = rx.recv() {
             let message_in = match inbound_engine_message {
@@ -34,7 +37,8 @@ pub fn initialize_engine_msg_in_message_submitter(
                     message: EngineMessage::CancelOrder(cancel),
                 },
             };
-            let encoded: Vec<u8> = bitcode::encode(&message_in);
+
+            let encoded: &[u8] = msg_in_encoding_buffer.encode(&message_in);
             udp_socket.send_to(&encoded, &send_addr).unwrap();
 
             let mut ack_bits = [0u8; 4];

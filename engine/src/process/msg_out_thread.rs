@@ -1,4 +1,5 @@
 use crate::ENGINE_MSG_OUT_PORT;
+use bitcode::Buffer;
 use common::domain::messaging::SequencedEngineMessage;
 use common::network::mutlicast::multicast_sender;
 use std::net::{SocketAddr, UdpSocket};
@@ -18,9 +19,11 @@ pub fn engine_msg_out_to_multicast(
     mut udp_socket: &UdpSocket,
 ) -> ! {
     let send_addr = "239.255.0.1:3500".parse::<SocketAddr>().unwrap();
+    let mut msg_out_encoding_buffer = Buffer::new();
 
     while let Ok(outbound_engine_message) = rx.recv() {
-        let encoded: Vec<u8> = bitcode::encode(&outbound_engine_message);
+        let encoded: &[u8] = msg_out_encoding_buffer.encode(&outbound_engine_message);
+
         udp_socket
             .send_to(&encoded, send_addr)
             .expect("TODO: panic message");

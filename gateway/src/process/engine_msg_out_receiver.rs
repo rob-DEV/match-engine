@@ -2,14 +2,14 @@ use common::domain::domain::TradeExecution;
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
 use common::network::mutlicast::multicast_receiver;
 use common::network::network_constants::MAX_UDP_PACKET_SIZE;
-use std::collections::HashMap;
+use dashmap::DashMap;
 use std::error::Error;
 use std::sync::mpsc::Sender;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 pub fn initialize_engine_msg_out_receiver(
     engine_msg_out_port: u16,
-    session_data_tx: Arc<Mutex<HashMap<u32, Sender<EngineMessage>>>>,
+    session_data_tx: Arc<DashMap<u32, Sender<EngineMessage>>>,
 ) -> Result<(), Box<dyn Error>> {
     let udp_socket = multicast_receiver(engine_msg_out_port);
     let mut buffer = [0; MAX_UDP_PACKET_SIZE];
@@ -20,6 +20,8 @@ pub fn initialize_engine_msg_out_receiver(
     );
 
     loop {
+        let session_data = session_data_tx.clone();
+
         match udp_socket.recv_from(&mut buffer) {
             Ok((size, _)) => {
                 let outbound_engine_message: SequencedEngineMessage =
@@ -27,7 +29,6 @@ pub fn initialize_engine_msg_out_receiver(
 
                 let outbound_message_type = &outbound_engine_message.message;
 
-                let mut session_data = session_data_tx.lock().unwrap();
                 match outbound_message_type {
                     EngineMessage::NewOrderAck(new_ack) => {
                         let client_id = new_ack.client_id;
