@@ -8,6 +8,6 @@ pub trait MatchStrategy {
         &mut self,
         order_book: &mut LimitOrderBook,
         order: &mut LimitOrder,
-        mutable_execution_buffer: &mut [Execution],
+        mutable_execution_buffer: &mut Vec<Execution>,
     ) -> usize;
 }

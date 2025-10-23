@@ -6,18 +6,16 @@ use common::domain::domain::{CancelOrderAck, NewOrderAck, TradeExecution};
 use common::domain::execution::Execution;
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
 use common::domain::order::{LimitOrder, Order};
-use common::memory::memory::uninitialized_arr;
 use common::util::time::epoch_nanos;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{Sender, TryRecvError};
-
-pub const MAX_EXECUTIONS_PER_CYCLE: usize = 4096;
 
 pub struct MatchEngine {
     symbol: String,
     isin: String,
     book: LimitOrderBook,
     match_strategy: FifoMatchStrategy,
+    executions: Vec<Execution>,
 }
 
 impl MatchEngine {
@@ -30,6 +28,7 @@ impl MatchEngine {
             isin,
             book,
             match_strategy: FifoMatchStrategy::new(),
+            executions: Vec::with_capacity(100_000),
         }
     }
 
@@ -47,6 +46,7 @@ impl MatchEngine {
         let mut statistic_print_per_second_clock = epoch_nanos();
         let mut orders_per_second = 0;
         let mut executions_per_second = 0;
+        let mut cycles_per_second = 0;
 
         loop {
             let cycle_start_epoch_statistic = epoch_nanos();
@@ -98,11 +98,14 @@ impl MatchEngine {
                 }
             }
 
+            cycles_per_second += 1;
+
             if epoch_nanos() - statistic_print_per_second_clock > 1000 * 1000 * 1000 {
                 let nanos = epoch_nanos();
                 println!(
                     "nanos: {} ord: {} exe: {} book: {} bid_v: {} ask_v: {} volume: {}",
                     nanos - cycle_start_epoch_statistic,
+                    // cycles_per_second,
                     orders_per_second,
                     executions_per_second,
                     self.book.orders_on_book(),
@@ -110,9 +113,11 @@ impl MatchEngine {
                     self.book.ask_volume(),
                     self.book.total_volume()
                 );
+
                 statistic_print_per_second_clock = nanos;
                 orders_per_second = 0;
                 executions_per_second = 0;
+                cycles_per_second = 0;
             }
         }
     }
@@ -138,15 +143,13 @@ impl MatchEngine {
         order: &mut LimitOrder,
         engine_msg_out_tx: &Sender<SequencedEngineMessage>,
     ) -> u32 {
-        let mut executions_buf = uninitialized_arr::<Execution, MAX_EXECUTIONS_PER_CYCLE>();
+        self.executions.clear();
 
         let num_executions =
             self.match_strategy
-                .match_orders(&mut self.book, order, &mut executions_buf);
+                .match_orders(&mut self.book, order, &mut self.executions);
 
-        for idx in 0..num_executions {
-            let execution = &executions_buf[idx];
-
+        self.executions.iter().for_each(|execution: &Execution| {
             let outbound_execution_message;
             outbound_execution_message = SequencedEngineMessage {
                 sequence_number: *engine_msg_out_seq_num,
@@ -167,7 +170,7 @@ impl MatchEngine {
 
             *engine_msg_out_seq_num += 1;
             *execution_seq_num += 1;
-        }
+        });
 
         num_executions as u32
     }

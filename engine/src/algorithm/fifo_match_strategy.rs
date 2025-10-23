@@ -1,5 +1,5 @@
-use crate::algorithm::match_strategy::MatchStrategy;
 use crate::algorithm::algo_utils::{best_prices_cross, build_fill_execution};
+use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
 use common::domain::domain::Side;
@@ -17,7 +17,7 @@ impl MatchStrategy for FifoMatchStrategy {
         &mut self,
         order_book: &mut LimitOrderBook,
         order: &mut LimitOrder,
-        mutable_execution_buffer: &mut [Execution],
+        executions_buffer: &mut Vec<Execution>,
     ) -> usize {
         let mut num_executions = 0;
 
@@ -65,19 +65,13 @@ impl MatchStrategy for FifoMatchStrategy {
                     opposite_book_side.total_qty -= fill_qty;
 
                     // Record execution
-                    mutable_execution_buffer[num_executions] =
-                        build_fill_execution(order, resting_order, fill_qty);
-                    num_executions += 1;
+                    executions_buffer.push(build_fill_execution(order, resting_order, fill_qty));
 
                     // Remove fully filled book order
                     if resting_order.qty == 0 {
                         opposite_book_side.order_map.remove(&resting_id);
                         opposite_price_level.pop_front();
                         opposite_book_side.num_orders -= 1;
-                    }
-
-                    if num_executions >= mutable_execution_buffer.len() {
-                        return num_executions;
                     }
                 }
 
@@ -99,6 +93,6 @@ impl MatchStrategy for FifoMatchStrategy {
             order_book.add_order(*order)
         }
 
-        num_executions
+        executions_buffer.len()
     }
 }
