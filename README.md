@@ -8,7 +8,7 @@ Experimental trade matching engine written in Rust.
 
 - Match Engine Gateway
 - Gateway -> Engine Messaging System (Multicast)
-- FIFO Order matching
+- FIFO & Pro-rata Order matching
 - Order Entry Test Client
 
 ## Usage
