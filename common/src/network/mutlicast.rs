@@ -1,9 +1,7 @@
 use crate::network::network_constants::MULTICAST_INTERFACE;
 use libc::{setsockopt, SOL_SOCKET, SO_BUSY_POLL, SO_PRIORITY};
 use nix::libc;
-use nix::sys::socket::{sendmsg, MsgFlags, SockaddrIn};
 use socket2::{Domain, Protocol, Socket, Type};
-use std::io::IoSlice;
 use std::net::{Ipv4Addr, SocketAddrV4, UdpSocket};
 use std::os::fd::AsRawFd;
 use std::{io, mem};
@@ -55,7 +53,7 @@ fn set_socket_priority_busy_spin(socket: &Socket) {
             SOL_SOCKET,
             SO_BUSY_POLL,
             &busy_poll as *const _ as *const libc::c_void,
-            mem::size_of_val(&busy_poll) as u32,
+            size_of_val(&busy_poll) as u32,
         )
     };
 
@@ -76,26 +74,4 @@ fn set_socket_priority_busy_spin(socket: &Socket) {
     if ret != 0 {
         eprintln!("Failed to set SO_PRIORITY: {}", io::Error::last_os_error());
     }
-}
-
-pub fn send_udp_msg(socket: &Socket, data: &[u8]) {
-    // Create an IoSlice for zero-copy pointer to your data
-
-    // Convert std::net::SocketAddrV4 to nix::SockAddr
-
-    let target = SocketAddrV4::new(Ipv4Addr::new(239, 255, 0, 1), 3000);
-    let dest = SockaddrIn::from(target);
-
-    // Prepare the data buffer
-    let data = [0xABu8; 128];
-    let iov = [IoSlice::new(&data)];
-
-    let sent = sendmsg(
-        socket.as_raw_fd(),
-        &iov,
-        &[], // no control messages
-        MsgFlags::empty(),
-        Some(&dest),
-    )
-    .unwrap();
 }
