@@ -99,7 +99,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let oe_client_thread = thread::spawn(move || client_connection(receiver));
 
     println!("-----------------");
-    println!("OE CLIENT\nBUY px qty\nSELL px qty\nPERF n_orders\nQUIT px qty");
+    println!("OE CLIENT\nBUY px qty\nSELL px qty\nCANCEL side order_id\nPERF n_orders\nQUIT");
     println!("-----------------");
 
     let quit = false;

@@ -35,8 +35,9 @@ Orders can be submitted via the oe_client
 OE CLIENT
 BUY px qty
 SELL px qty
+CANCEL side order_id
 PERF n_orders
-QUIT px qty
+QUIT
 ```
 
 The engine will ACK new orders & report executions (both sides get an execution & the oe_client can currently self
