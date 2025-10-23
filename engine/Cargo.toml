@@ -11,3 +11,4 @@ lazy_static = "1.4.0"
 bitcode = "0.6.3"
 socket2 = { version = "0.5.8", features = ["all"] }
 core_affinity = "0.8.3"
+nix = "0.29"
