@@ -1,10 +1,10 @@
 use crate::message::GatewayMessage;
 use common::domain::domain::{CancelOrder, NewOrder, Side};
 use common::domain::messaging::EngineMessage;
+use common::util::time::system_nanos;
 use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;
 use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder};
-use common::util::time::epoch_nanos;
 
 pub struct MessageConverter {
     fix_decoder: Decoder<>,
@@ -43,7 +43,7 @@ impl MessageConverter {
                     order_side,
                     px: fix_msg_px,
                     qty: fix_msg_qty,
-                    timestamp: epoch_nanos()
+                    timestamp: system_nanos()
                 })
             }
             MsgType::OrderCancelRequest => {

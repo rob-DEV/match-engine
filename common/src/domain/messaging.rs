@@ -6,7 +6,8 @@ pub type SequenceNumber = u32;
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct SequencedEngineMessage {
     pub sequence_number: SequenceNumber,
-    pub message: EngineMessage
+    pub message: EngineMessage,
+    pub sent_time: u64
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]

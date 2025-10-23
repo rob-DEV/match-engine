@@ -3,6 +3,7 @@ use crate::ENGINE_MSG_IN_PORT;
 use bitcode::Buffer;
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
 use common::network::mutlicast::multicast_sender;
+use common::util::time::system_nanos;
 use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::mpsc::Receiver;
@@ -23,11 +24,12 @@ pub fn initialize_engine_msg_in_message_submitter(
     let mut msg_in_encoding_buffer = Buffer::new();
 
     loop {
-        while let Ok(inbound_engine_message) = rx.recv() {
+        while let Ok(inbound_engine_message) = rx.try_recv() {
             let message_in = match inbound_engine_message {
                 GatewayMessage::LimitOrder(new) => SequencedEngineMessage {
                     sequence_number: sequence,
                     message: EngineMessage::NewOrder(new),
+                    sent_time: system_nanos(),
                 },
                 GatewayMessage::MarketOrder(_) => {
                     unimplemented!()
@@ -35,6 +37,7 @@ pub fn initialize_engine_msg_in_message_submitter(
                 GatewayMessage::CancelOrder(cancel) => SequencedEngineMessage {
                     sequence_number: sequence,
                     message: EngineMessage::CancelOrder(cancel),
+                    sent_time: system_nanos(),
                 },
             };
 

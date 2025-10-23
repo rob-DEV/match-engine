@@ -3,7 +3,7 @@ use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
 use common::domain::order::{CancelOrder, LimitOrder, Order};
 use common::network::mutlicast::multicast_receiver;
 use common::network::network_constants::MAX_UDP_PACKET_SIZE;
-use common::util::time::epoch_nanos;
+use common::util::time::system_nanos;
 use rand::random;
 use std::net::UdpSocket;
 use std::sync::mpsc::Sender;
@@ -46,7 +46,7 @@ fn multicast_receiver_to_engine_msg_in(udp_socket: &UdpSocket, oe_tx: &Sender<Or
                     side: new.order_side,
                     px: new.px,
                     qty: new.qty,
-                    placed_time: epoch_nanos(),
+                    placed_time: system_nanos(),
                 }))
                 .unwrap(),
             EngineMessage::CancelOrder(cancel) => oe_tx

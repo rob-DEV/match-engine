@@ -2,7 +2,7 @@ use crate::book::order_book::Price;
 use common::domain::domain::Side;
 use common::domain::execution::Execution;
 use common::domain::order::LimitOrder;
-use common::util::time::epoch_nanos;
+use common::util::time::system_nanos;
 use rand::random;
 
 pub fn best_prices_cross(order: &mut LimitOrder, best_px: Price) -> bool {
@@ -33,6 +33,6 @@ pub fn build_fill_execution(
         fill_qty,
         bid,
         ask,
-        execution_time: epoch_nanos(),
+        execution_time: system_nanos(),
     }
 }

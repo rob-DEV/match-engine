@@ -6,7 +6,7 @@ use common::domain::domain::{CancelOrderAck, NewOrderAck, TradeExecution};
 use common::domain::execution::Execution;
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
 use common::domain::order::{LimitOrder, Order};
-use common::util::time::epoch_nanos;
+use common::util::time::system_nanos;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{Sender, TryRecvError};
 
@@ -43,13 +43,13 @@ impl MatchEngine {
         let mut engine_execution_seq_num = 1;
 
         // Per second statistics
-        let mut statistic_print_per_second_clock = epoch_nanos();
+        let mut statistic_print_per_second_clock = system_nanos();
         let mut orders_per_second = 0;
         let mut executions_per_second = 0;
         let mut cycles_per_second = 0;
 
         loop {
-            let cycle_start_epoch_statistic = epoch_nanos();
+            let cycle_start_epoch_statistic = system_nanos();
 
             // oe phase
             if let Some(inbound_order) = self.receive_inbound_order(&order_tx) {
@@ -63,8 +63,9 @@ impl MatchEngine {
                                 order_id: limit_order.id,
                                 px: limit_order.px,
                                 qty: limit_order.qty,
-                                ack_time: epoch_nanos(),
+                                ack_time: system_nanos(),
                             }),
+                            sent_time: system_nanos(),
                         };
                         engine_msg_out_tx.send(out).unwrap();
                         engine_msg_out_seq_num += 1;
@@ -88,8 +89,9 @@ impl MatchEngine {
                                 client_id: cancel_order.client_id,
                                 order_id: cancel_order.id,
                                 found,
-                                ack_time: epoch_nanos(),
+                                ack_time: system_nanos(),
                             }),
+                            sent_time: system_nanos(),
                         };
                         engine_msg_out_tx.send(out).unwrap();
                         engine_msg_out_seq_num += 1;
@@ -100,8 +102,8 @@ impl MatchEngine {
 
             cycles_per_second += 1;
 
-            if epoch_nanos() - statistic_print_per_second_clock > 1000 * 1000 * 1000 {
-                let nanos = epoch_nanos();
+            if system_nanos() - statistic_print_per_second_clock > 1000 * 1000 * 1000 {
+                let nanos = system_nanos();
                 println!(
                     "nanos: {} ord: {} exe: {} book: {} bid_v: {} ask_v: {} volume: {}",
                     nanos - cycle_start_epoch_statistic,
@@ -164,6 +166,7 @@ impl MatchEngine {
                     px: execution.bid.px,
                     execution_time: execution.execution_time,
                 }),
+                sent_time: system_nanos(),
             };
 
             engine_msg_out_tx.send(outbound_execution_message).unwrap();
