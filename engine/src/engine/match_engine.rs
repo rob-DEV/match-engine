@@ -2,7 +2,7 @@ use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
-use common::domain::domain::{CancelOrderAck, NewOrderAck, TradeExecution};
+use common::domain::domain::{CancelOrderAck, Instrument, NewOrderAck, TradeExecution};
 use common::domain::execution::Execution;
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
 use common::domain::order::{LimitOrder, Order};
@@ -11,24 +11,25 @@ use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{Sender, TryRecvError};
 
 pub struct MatchEngine {
-    symbol: String,
-    isin: String,
+    instrument: Instrument,
     book: LimitOrderBook,
     match_strategy: FifoMatchStrategy,
-    executions: Vec<Execution>,
+    cycle_executions_buffer: Vec<Execution>,
 }
 
 impl MatchEngine {
-    pub fn new(symbol: String, isin: String) -> Self {
+    pub fn new(instrument: Instrument) -> Self {
         let book = LimitOrderBook::new();
 
-        println!("--- Initializing engine instance for {symbol} (ISIN:{isin}) ---");
+        println!(
+            "--- Initializing engine instance for {} ({}) ---",
+            instrument.symbol, instrument.isin
+        );
         Self {
-            symbol,
-            isin,
+            instrument,
             book,
             match_strategy: FifoMatchStrategy::new(),
-            executions: Vec::with_capacity(100_000),
+            cycle_executions_buffer: Vec::with_capacity(100_000),
         }
     }
 
@@ -145,35 +146,39 @@ impl MatchEngine {
         order: &mut LimitOrder,
         engine_msg_out_tx: &Sender<SequencedEngineMessage>,
     ) -> u32 {
-        self.executions.clear();
+        self.cycle_executions_buffer.clear();
 
-        let num_executions =
-            self.match_strategy
-                .match_orders(&mut self.book, order, &mut self.executions);
+        let num_executions = self.match_strategy.match_orders(
+            &mut self.book,
+            order,
+            &mut self.cycle_executions_buffer,
+        );
 
-        self.executions.iter().for_each(|execution: &Execution| {
-            let outbound_execution_message;
-            outbound_execution_message = SequencedEngineMessage {
-                sequence_number: *engine_msg_out_seq_num,
-                message: EngineMessage::TradeExecution(TradeExecution {
-                    trade_seq: *execution_seq_num,
-                    trade_id: execution.id,
-                    bid_client_id: execution.bid.client_id,
-                    ask_client_id: execution.ask.client_id,
-                    bid_order_id: execution.bid.id,
-                    ask_order_id: execution.ask.id,
-                    fill_qty: execution.fill_qty,
-                    px: execution.bid.px,
-                    execution_time: execution.execution_time,
-                }),
-                sent_time: system_nanos(),
-            };
+        self.cycle_executions_buffer
+            .iter()
+            .for_each(|execution: &Execution| {
+                let outbound_execution_message;
+                outbound_execution_message = SequencedEngineMessage {
+                    sequence_number: *engine_msg_out_seq_num,
+                    message: EngineMessage::TradeExecution(TradeExecution {
+                        trade_seq: *execution_seq_num,
+                        trade_id: execution.id,
+                        bid_client_id: execution.bid.client_id,
+                        ask_client_id: execution.ask.client_id,
+                        bid_order_id: execution.bid.id,
+                        ask_order_id: execution.ask.id,
+                        fill_qty: execution.fill_qty,
+                        px: execution.bid.px,
+                        execution_time: execution.execution_time,
+                    }),
+                    sent_time: system_nanos(),
+                };
 
-            engine_msg_out_tx.send(outbound_execution_message).unwrap();
+                engine_msg_out_tx.send(outbound_execution_message).unwrap();
 
-            *engine_msg_out_seq_num += 1;
-            *execution_seq_num += 1;
-        });
+                *engine_msg_out_seq_num += 1;
+                *execution_seq_num += 1;
+            });
 
         num_executions as u32
     }

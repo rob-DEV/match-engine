@@ -1,5 +1,12 @@
 use bitcode::{Decode, Encode};
 
+#[derive(Encode, Decode, PartialEq, Debug, Clone, Eq)]
+pub struct Instrument {
+    pub id: u32,
+    pub symbol: String,
+    pub isin: String,
+}
+
 #[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
 pub enum Side {
     BUY,
@@ -12,7 +19,7 @@ pub struct NewOrder {
     pub order_side: Side,
     pub px: u32,
     pub qty: u32,
-    pub timestamp: u64
+    pub timestamp: u64,
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]
