@@ -1,6 +1,7 @@
 use crate::ENGINE_MSG_IN_PORT;
+use common::domain::domain::CancelOrder;
 use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
-use common::domain::order::{CancelOrder, LimitOrder, Order};
+use common::domain::order::{LimitOrder, Order};
 use common::network::mutlicast::multicast_receiver;
 use common::network::network_constants::MAX_UDP_PACKET_SIZE;
 use common::util::time::system_nanos;
@@ -53,8 +54,8 @@ fn multicast_receiver_to_engine_msg_in(udp_socket: &UdpSocket, oe_tx: &Sender<Or
             EngineMessage::CancelOrder(cancel) => oe_tx
                 .send(Order::Cancel(CancelOrder {
                     client_id: cancel.client_id,
-                    side: cancel.order_side,
-                    id: cancel.order_id,
+                    order_side: cancel.order_side,
+                    order_id: cancel.order_id,
                 }))
                 .unwrap(),
             _ => {

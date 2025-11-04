@@ -1,4 +1,3 @@
-use crate::domain::order::TimeInForce;
 use bitcode::{Decode, Encode};
 
 #[derive(Encode, Decode, PartialEq, Debug, Clone, Eq)]
@@ -14,7 +13,7 @@ pub enum Side {
     SELL,
 }
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
 pub struct NewOrder {
     pub client_id: u32,
     pub order_side: Side,
@@ -24,14 +23,14 @@ pub struct NewOrder {
     pub timestamp: u64,
 }
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
 pub struct CancelOrder {
     pub client_id: u32,
     pub order_side: Side,
     pub order_id: u32,
 }
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
 pub struct NewOrderAck {
     pub client_id: u32,
     pub side: Side,
@@ -41,12 +40,19 @@ pub struct NewOrderAck {
     pub ack_time: u64,
 }
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
 pub struct CancelOrderAck {
     pub client_id: u32,
     pub order_id: u32,
     pub found: bool,
     pub ack_time: u64,
+}
+
+#[derive(Encode, Decode, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TimeInForce {
+    GTC,
+    IOC,
+    FOK,
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]

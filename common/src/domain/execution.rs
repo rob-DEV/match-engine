@@ -1,5 +1,5 @@
-use std::fmt::{Debug, Formatter};
 use crate::domain::order::LimitOrder;
+use std::fmt::{Debug, Formatter};
 
 pub struct Execution {
     pub id: u32,
@@ -11,18 +11,28 @@ pub struct Execution {
 
 impl Debug for Execution {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "-----------------------------------Full Exec.-----------------------------------").unwrap();
+        writeln!(
+            f,
+            "-----------------------------------Full Exec.-----------------------------------"
+        )
+        .unwrap();
         writeln!(
             f,
             "{0: <10} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
             "Ask id", "Bid", "Px", "Fill", "Ex Time"
-        ).unwrap();
+        )
+        .unwrap();
         writeln!(
             f,
             "{0: <10} | {1: <10} | {2: <10} | {3: <10} | {4: <10}",
             self.ask.id, self.bid.id, self.ask.px, self.fill_qty, self.execution_time
-        ).unwrap();
-        writeln!(f, "--------------------------------------------------------------------------------").unwrap();
+        )
+        .unwrap();
+        writeln!(
+            f,
+            "--------------------------------------------------------------------------------"
+        )
+        .unwrap();
         Ok(())
     }
 }

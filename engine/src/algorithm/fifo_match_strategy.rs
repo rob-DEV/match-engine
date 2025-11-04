@@ -1,10 +1,10 @@
 use crate::algorithm::algo_utils::{best_prices_cross, build_fill_execution};
 use crate::algorithm::match_strategy::MatchStrategy;
-use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
 use common::domain::domain::Side;
 use common::domain::execution::Execution;
-use common::domain::order::{LimitOrder, TimeInForce};
+use common::domain::order::LimitOrder;
+use crate::book::book::Book;
 
 pub struct FifoMatchStrategy;
 
@@ -86,10 +86,7 @@ impl MatchStrategy for FifoMatchStrategy {
             }
         }
 
-        match order.time_in_force {
-            TimeInForce::GTC => order_book.add_order(*order),
-            TimeInForce::IOC => {}
-        }
+        order_book.add_order(*order);
 
         executions_buffer.len()
     }

@@ -8,6 +8,15 @@ pub fn system_nanos() -> u64 {
     ts.tv_sec() as u64 * 1_000_000_000 + ts.tv_nsec() as u64
 }
 
+// lazy_static! {
+//     static ref ANCHOR: Anchor = Anchor::new();
+// }
+
+// #[inline(always)]
+// pub fn system_nanos() -> u64 {
+//     minstant::Instant::now().as_unix_nanos(&*ANCHOR)
+// }
+
 #[inline(always)]
 pub fn wait_50_milli() {
     sleep(Duration::from_millis(50));

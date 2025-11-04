@@ -83,12 +83,12 @@ impl MatchEngine {
                         executions_per_second += executions;
                     }
                     Order::Cancel(cancel_order) => {
-                        let found = self.book.remove_order(cancel_order);
+                        let found = self.book.remove_order(&cancel_order);
                         let out = SequencedEngineMessage {
                             sequence_number: engine_msg_out_seq_num,
                             message: EngineMessage::CancelOrderAck(CancelOrderAck {
                                 client_id: cancel_order.client_id,
-                                order_id: cancel_order.id,
+                                order_id: cancel_order.order_id,
                                 found,
                                 ack_time: system_nanos(),
                             }),

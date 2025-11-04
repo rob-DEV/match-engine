@@ -1,7 +1,8 @@
 use crate::book::book::Book;
 use crate::book::book_side::BookSide;
+use common::domain::domain::CancelOrder;
 use common::domain::domain::Side::{BUY, SELL};
-use common::domain::order::{CancelOrder, LimitOrder};
+use common::domain::order::LimitOrder;
 
 pub type Price = u32;
 pub struct LimitOrderBook {
@@ -30,13 +31,13 @@ impl Book for LimitOrderBook {
         };
     }
 
-    fn remove_order(&mut self, order: CancelOrder) -> bool {
-        match order.side {
+    fn remove_order(&mut self, order: &CancelOrder) -> bool {
+        match order.order_side {
             BUY => {
-                self.bids.remove_order(order.id);
+                self.bids.remove_order(order.order_id);
             }
             SELL => {
-                self.asks.remove_order(order.id);
+                self.asks.remove_order(order.order_id);
             }
         };
 

@@ -1,4 +1,7 @@
-use crate::domain::domain::{CancelOrder, CancelOrderAck, EngineError, NewOrder, NewOrderAck, RejectionMessage, TradeExecution};
+use crate::domain::domain::{
+    CancelOrder, CancelOrderAck, EngineError, NewOrder, NewOrderAck, RejectionMessage,
+    TradeExecution,
+};
 use bitcode::{Decode, Encode};
 
 pub type SequenceNumber = u32;
@@ -7,7 +10,7 @@ pub type SequenceNumber = u32;
 pub struct SequencedEngineMessage {
     pub sequence_number: SequenceNumber,
     pub message: EngineMessage,
-    pub sent_time: u64
+    pub sent_time: u64,
 }
 
 #[derive(Encode, Decode, PartialEq, Debug)]

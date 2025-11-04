@@ -1,6 +1,5 @@
 use crate::message::GatewayMessage;
 use crate::parser::MessageConverter;
-use common::domain::messaging::EngineMessage;
 use dashmap::DashMap;
 use rand::random;
 use std::net::SocketAddr;
@@ -8,6 +7,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
+use common::domain::messaging::EngineMessage;
 
 struct ClientSessionState {
     client_id: u32,

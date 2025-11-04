@@ -1,7 +1,6 @@
 use crate::message::GatewayMessage;
-use common::domain::domain::{CancelOrder, NewOrder, Side};
+use common::domain::domain::{CancelOrder, NewOrder, Side, TimeInForce};
 use common::domain::messaging::EngineMessage;
-use common::domain::order::TimeInForce;
 use common::util::time::system_nanos;
 use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;
