@@ -1,10 +1,12 @@
 use crate::message::GatewayMessage;
-use common::domain::domain::{CancelOrder, NewOrder, Side, TimeInForce};
-use common::domain::messaging::EngineMessage;
+use common::message::side::Side;
+use common::transport::sequenced_message::EngineMessage;
 use common::util::time::system_nanos;
 use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;
 use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder};
+use common::message::cancel_order::CancelOrder;
+use common::message::new_order::{NewOrder, TimeInForce};
 
 pub struct MessageConverter {
     fix_decoder: Decoder,

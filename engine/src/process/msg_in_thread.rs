@@ -1,9 +1,9 @@
 use crate::ENGINE_MSG_IN_PORT;
-use common::domain::domain::CancelOrder;
-use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
-use common::domain::order::{LimitOrder, Order};
+use common::message::cancel_order::CancelOrder;
+use crate::domain::order::{LimitOrder, Order};
 use common::network::mutlicast::multicast_receiver;
 use common::network::network_constants::MAX_UDP_PACKET_SIZE;
+use common::transport::sequenced_message::{EngineMessage, SequencedEngineMessage};
 use common::util::time::system_nanos;
 use rand::random;
 use std::net::UdpSocket;
@@ -41,7 +41,7 @@ fn multicast_receiver_to_engine_msg_in(udp_socket: &UdpSocket, oe_tx: &Sender<Or
 
         match inbound_engine_message.message {
             EngineMessage::NewOrder(new) => oe_tx
-                .send(Order::New(LimitOrder {
+                .send(Order::LimitOrder(LimitOrder {
                     client_id: new.client_id,
                     id: random::<u32>(),
                     side: new.order_side,

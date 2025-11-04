@@ -1,7 +1,7 @@
 use common::network::mutlicast::multicast_receiver;
 use common::network::network_constants::MAX_UDP_PACKET_SIZE;
 use lazy_static::lazy_static;
-use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
+use common::transport::sequenced_message::{EngineMessage, SequencedEngineMessage};
 
 lazy_static! {
     pub static ref ENGINE_MSG_OUT_PORT: u16 = 3500;

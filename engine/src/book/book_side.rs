@@ -1,8 +1,8 @@
 use crate::book::order_book::Price;
 use crate::book::price_level::PriceLevel;
-use common::domain::domain::Side;
-use common::domain::domain::Side::{BUY, SELL};
-use common::domain::order::LimitOrder;
+use crate::domain::order::LimitOrder;
+use common::message::side::Side;
+use common::message::side::Side::{BUY, SELL};
 use std::collections::{BTreeMap, HashMap};
 
 pub struct BookSide {

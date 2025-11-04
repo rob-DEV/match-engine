@@ -2,13 +2,16 @@ use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
-use common::domain::domain::{CancelOrderAck, Instrument, NewOrderAck, TradeExecution};
-use common::domain::execution::Execution;
-use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
-use common::domain::order::{LimitOrder, Order};
+use common::message::cancel_order::CancelOrderAck;
+use common::message::instrument::Instrument;
+use common::message::execution::TradeExecution;
+use common::message::new_order::NewOrderAck;
+use crate::domain::order::{LimitOrder, Order};
+use common::transport::sequenced_message::{EngineMessage, SequencedEngineMessage};
 use common::util::time::system_nanos;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{Sender, TryRecvError};
+use crate::domain::execution::Execution;
 
 pub struct MatchEngine {
     instrument: Instrument,
@@ -55,7 +58,7 @@ impl MatchEngine {
             // oe phase
             if let Some(inbound_order) = self.receive_inbound_order(&order_tx) {
                 match inbound_order {
-                    Order::New(mut limit_order) => {
+                    Order::LimitOrder(mut limit_order) => {
                         let out = SequencedEngineMessage {
                             sequence_number: engine_msg_out_seq_num,
                             message: EngineMessage::NewOrderAck(NewOrderAck {

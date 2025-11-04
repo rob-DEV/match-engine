@@ -1,7 +1,7 @@
 use crate::message::GatewayMessage;
 use crate::ENGINE_MSG_IN_PORT;
 use bitcode::Buffer;
-use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
+use common::transport::sequenced_message::{EngineMessage, SequencedEngineMessage};
 use common::network::mutlicast::multicast_sender;
 use common::util::time::system_nanos;
 use std::error::Error;

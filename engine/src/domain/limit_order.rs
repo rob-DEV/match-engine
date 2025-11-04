@@ -1,11 +1,6 @@
-use crate::domain::domain::{CancelOrder, Side, TimeInForce};
+use common::message::new_order::TimeInForce;
+use common::message::side::Side;
 use std::cmp::Ordering;
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub enum Order {
-    New(LimitOrder),
-    Cancel(CancelOrder),
-}
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct LimitOrder {

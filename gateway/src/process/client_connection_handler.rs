@@ -1,7 +1,7 @@
 use crate::client_state::on_client_connection;
 use crate::message::GatewayMessage;
 use crate::GATEWAY_PORT;
-use common::domain::messaging::EngineMessage;
+use common::transport::sequenced_message::EngineMessage;
 use dashmap::DashMap;
 use std::error::Error;
 use std::net::SocketAddr;

@@ -1,5 +1,5 @@
-use common::domain::domain::CancelOrder;
-use common::domain::order::LimitOrder;
+use common::message::cancel_order::CancelOrder;
+use crate::domain::order::LimitOrder;
 
 pub trait Book {
     fn add_order(&mut self, order: LimitOrder);

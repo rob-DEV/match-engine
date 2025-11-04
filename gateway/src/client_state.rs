@@ -7,7 +7,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
-use common::domain::messaging::EngineMessage;
+use common::transport::sequenced_message::EngineMessage;
 
 struct ClientSessionState {
     client_id: u32,

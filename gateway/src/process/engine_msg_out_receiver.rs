@@ -1,5 +1,5 @@
-use common::domain::domain::TradeExecution;
-use common::domain::messaging::{EngineMessage, SequencedEngineMessage};
+use common::message::execution::TradeExecution;
+use common::transport::sequenced_message::{EngineMessage, SequencedEngineMessage};
 use common::network::mutlicast::multicast_receiver;
 use common::network::network_constants::MAX_UDP_PACKET_SIZE;
 use dashmap::DashMap;

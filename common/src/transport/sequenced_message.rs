@@ -1,7 +1,7 @@
-use crate::domain::domain::{
-    CancelOrder, CancelOrderAck, EngineError, NewOrder, NewOrderAck, RejectionMessage,
-    TradeExecution,
-};
+use crate::message::cancel_order::{CancelOrder, CancelOrderAck};
+use crate::message::engine::{EngineError, RejectionMessage};
+use crate::message::execution::TradeExecution;
+use crate::message::new_order::{NewOrder, NewOrderAck};
 use bitcode::{Decode, Encode};
 
 pub type SequenceNumber = u32;

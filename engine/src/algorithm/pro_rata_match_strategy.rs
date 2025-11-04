@@ -3,9 +3,9 @@ use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
 use crate::book::price_level::PriceLevel;
-use common::domain::domain::Side;
-use common::domain::execution::Execution;
-use common::domain::order::LimitOrder;
+use crate::domain::execution::Execution;
+use crate::domain::order::LimitOrder;
+use common::message::side::Side;
 use std::collections::HashMap;
 
 pub struct ProRataMatchStrategy;

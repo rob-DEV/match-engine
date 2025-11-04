@@ -1,8 +1,8 @@
 use crate::process::match_thread::initialize_match_thread;
 use crate::process::msg_in_thread::initialize_engine_msg_in_thread;
 use crate::process::msg_out_thread::initialize_engine_msg_out_thread;
-use common::domain::messaging::SequencedEngineMessage;
-use common::domain::order::Order;
+use common::transport::sequenced_message::SequencedEngineMessage;
+use domain::order::Order;
 use common::util::time::wait_50_milli;
 use lazy_static::lazy_static;
 use std::error::Error;
@@ -14,6 +14,7 @@ mod engine;
 mod book;
 mod process;
 mod algorithm;
+mod domain;
 
 lazy_static! {
     pub static ref ENGINE_MSG_IN_PORT: u16 = env::var("ENGINE_PORT").unwrap_or("3000".to_owned()).parse::<u16>().unwrap();

@@ -1,6 +1,6 @@
 use crate::ENGINE_MSG_OUT_PORT;
 use bitcode::Buffer;
-use common::domain::messaging::SequencedEngineMessage;
+use common::transport::sequenced_message::SequencedEngineMessage;
 use common::network::mutlicast::multicast_sender;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::mpsc::Receiver;

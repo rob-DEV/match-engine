@@ -1,7 +1,7 @@
 use crate::book::order_book::Price;
-use common::domain::domain::Side;
-use common::domain::execution::Execution;
-use common::domain::order::LimitOrder;
+use crate::domain::execution::Execution;
+use crate::domain::order::LimitOrder;
+use common::message::side::Side;
 use common::util::time::system_nanos;
 use rand::random;
 

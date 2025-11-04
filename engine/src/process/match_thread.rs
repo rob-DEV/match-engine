@@ -1,8 +1,8 @@
 use crate::engine;
 use common::config::config::load_engine_config;
-use common::domain::domain::Instrument;
-use common::domain::messaging::SequencedEngineMessage;
-use common::domain::order::Order;
+use common::message::instrument::Instrument;
+use common::transport::sequenced_message::SequencedEngineMessage;
+use crate::domain::order::Order;
 use std::sync::mpsc::{Receiver, Sender};
 
 pub fn initialize_match_thread(
