@@ -1,4 +1,5 @@
 use crate::domain::domain::Side;
+use bitcode::{Decode, Encode};
 use std::cmp::Ordering;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -14,6 +15,7 @@ pub struct LimitOrder {
     pub side: Side,
     pub px: u32,
     pub qty: u32,
+    pub time_in_force: TimeInForce,
     pub placed_time: u64,
 }
 
@@ -22,6 +24,12 @@ pub struct CancelOrder {
     pub client_id: u32,
     pub side: Side,
     pub id: u32,
+}
+
+#[derive(Encode, Decode, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TimeInForce {
+    GTC,
+    IOC,
 }
 
 impl LimitOrder {

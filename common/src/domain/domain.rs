@@ -1,3 +1,4 @@
+use crate::domain::order::TimeInForce;
 use bitcode::{Decode, Encode};
 
 #[derive(Encode, Decode, PartialEq, Debug, Clone, Eq)]
@@ -19,6 +20,7 @@ pub struct NewOrder {
     pub order_side: Side,
     pub px: u32,
     pub qty: u32,
+    pub time_in_force: TimeInForce,
     pub timestamp: u64,
 }
 

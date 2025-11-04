@@ -4,7 +4,7 @@ use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
 use common::domain::domain::Side;
 use common::domain::execution::Execution;
-use common::domain::order::LimitOrder;
+use common::domain::order::{LimitOrder, TimeInForce};
 
 pub struct FifoMatchStrategy;
 
@@ -19,9 +19,7 @@ impl MatchStrategy for FifoMatchStrategy {
         order: &mut LimitOrder,
         executions_buffer: &mut Vec<Execution>,
     ) -> usize {
-        let mut num_executions = 0;
-
-        let (book_side, opposite_book_side) = match order.side {
+        let (_book_side, opposite_book_side) = match order.side {
             Side::BUY => (&mut order_book.bids, &mut order_book.asks),
             Side::SELL => (&mut order_book.asks, &mut order_book.bids),
         };
@@ -88,9 +86,9 @@ impl MatchStrategy for FifoMatchStrategy {
             }
         }
 
-        // If still unfilled, add to book
-        if order.qty > 0 {
-            order_book.add_order(*order)
+        match order.time_in_force {
+            TimeInForce::GTC => order_book.add_order(*order),
+            TimeInForce::IOC => {}
         }
 
         executions_buffer.len()

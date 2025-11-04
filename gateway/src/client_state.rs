@@ -44,6 +44,7 @@ pub async fn on_client_connection(
 
     let read_task = tokio::spawn(async move {
         let mut line = String::new();
+        let mut engine_message_tx = inbound_engine_message_tx.clone();
         loop {
             line.clear();
             let bytes_read = buf_reader.read_line(&mut line).await.unwrap();
@@ -54,8 +55,7 @@ pub async fn on_client_connection(
             );
 
             match inbound_client_message {
-                Ok(inbound_message) => inbound_engine_message_tx
-                    .clone()
+                Ok(inbound_message) => engine_message_tx
                     .send(inbound_message)
                     .unwrap(),
                 Err(err) => {

@@ -1,14 +1,15 @@
 use crate::message::GatewayMessage;
 use common::domain::domain::{CancelOrder, NewOrder, Side};
 use common::domain::messaging::EngineMessage;
+use common::domain::order::TimeInForce;
 use common::util::time::system_nanos;
 use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;
 use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder};
 
 pub struct MessageConverter {
-    fix_decoder: Decoder<>,
-    fix_encoder: Encoder<>,
+    fix_decoder: Decoder,
+    fix_encoder: Encoder,
 }
 
 impl MessageConverter {
@@ -24,7 +25,11 @@ impl MessageConverter {
             fix_encoder,
         }
     }
-    pub fn fix_to_in_msg(&mut self, client_id: u32, fix_message_buffer: &[u8]) -> Result<GatewayMessage, DecodeError> {
+    pub fn fix_to_in_msg(
+        &mut self,
+        client_id: u32,
+        fix_message_buffer: &[u8],
+    ) -> Result<GatewayMessage, DecodeError> {
         let fix_msg = self.fix_decoder.decode(fix_message_buffer)?;
 
         let fix_msg_type = MsgType::deserialize(fix_msg.fv(fix42::MSG_TYPE).unwrap()).unwrap();
@@ -36,14 +41,17 @@ impl MessageConverter {
                 let fix_msg_side = fix_msg.fv::<&str>(fix44::SIDE).unwrap();
 
                 let mut order_side = Side::BUY;
-                if fix_msg_side == "2" { order_side = Side::SELL; }
+                if fix_msg_side == "2" {
+                    order_side = Side::SELL;
+                }
 
                 GatewayMessage::LimitOrder(NewOrder {
                     client_id,
                     order_side,
                     px: fix_msg_px,
                     qty: fix_msg_qty,
-                    timestamp: system_nanos()
+                    time_in_force: TimeInForce::GTC,
+                    timestamp: system_nanos(),
                 })
             }
             MsgType::OrderCancelRequest => {
@@ -51,7 +59,9 @@ impl MessageConverter {
                 let fix_msg_order_id = fix_msg.fv::<u32>(fix44::ORDER_ID).unwrap();
 
                 let mut order_side = Side::BUY;
-                if fix_msg_side == "2" { order_side = Side::SELL; }
+                if fix_msg_side == "2" {
+                    order_side = Side::SELL;
+                }
 
                 GatewayMessage::CancelOrder(CancelOrder {
                     client_id,
@@ -73,14 +83,20 @@ impl MessageConverter {
 
         match engine_msg_out {
             EngineMessage::NewOrderAck(_) => {
-                let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"ExecutionReport");
+                let mut out_fix =
+                    self.fix_encoder
+                        .start_message(b"FIX.4.4", &mut out_buffer, b"ExecutionReport");
             }
             EngineMessage::RejectionMessage(_) => {
-                let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
+                let mut out_fix =
+                    self.fix_encoder
+                        .start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
                 out_fix.set(fix44::SESSION_REJECT_REASON, 7)
             }
             EngineMessage::EngineError(_) => {
-                let mut out_fix = self.fix_encoder.start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
+                let mut out_fix =
+                    self.fix_encoder
+                        .start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
                 out_fix.set(fix44::SESSION_REJECT_REASON, 99)
             }
             _ => {

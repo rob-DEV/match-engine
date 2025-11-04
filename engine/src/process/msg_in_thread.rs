@@ -46,6 +46,7 @@ fn multicast_receiver_to_engine_msg_in(udp_socket: &UdpSocket, oe_tx: &Sender<Or
                     side: new.order_side,
                     px: new.px,
                     qty: new.qty,
+                    time_in_force: new.time_in_force,
                     placed_time: system_nanos(),
                 }))
                 .unwrap(),
