@@ -78,33 +78,4 @@ impl MessageConverter {
 
         Ok(msg)
     }
-
-    pub fn engine_msg_out_to_fix(&mut self, engine_msg_out: EngineMessage) -> Vec<u8> {
-        let mut out_buffer = vec![0; 128];
-
-        match engine_msg_out {
-            EngineMessage::NewOrderAck(_) => {
-                let mut out_fix =
-                    self.fix_encoder
-                        .start_message(b"FIX.4.4", &mut out_buffer, b"ExecutionReport");
-            }
-            EngineMessage::RejectionMessage(_) => {
-                let mut out_fix =
-                    self.fix_encoder
-                        .start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
-                out_fix.set(fix44::SESSION_REJECT_REASON, 7)
-            }
-            EngineMessage::EngineError(_) => {
-                let mut out_fix =
-                    self.fix_encoder
-                        .start_message(b"FIX.4.4", &mut out_buffer, b"Reject");
-                out_fix.set(fix44::SESSION_REJECT_REASON, 99)
-            }
-            _ => {
-                unimplemented!()
-            }
-        };
-
-        out_buffer
-    }
 }

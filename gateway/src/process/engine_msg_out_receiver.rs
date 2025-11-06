@@ -1,7 +1,7 @@
 use common::message::execution::TradeExecution;
-use common::transport::sequenced_message::{EngineMessage, SequencedEngineMessage};
 use common::network::mutlicast::multicast_receiver;
 use common::network::network_constants::MAX_UDP_PACKET_SIZE;
+use common::transport::sequenced_message::{EngineMessage, SequencedEngineMessage};
 use dashmap::DashMap;
 use std::error::Error;
 use std::sync::mpsc::Sender;
@@ -52,7 +52,8 @@ pub fn initialize_engine_msg_out_receiver(
                             ask_client_id: execution.ask_client_id,
                             bid_order_id: execution.bid_order_id,
                             ask_order_id: execution.ask_order_id,
-                            fill_qty: execution.fill_qty,
+                            exec_qty: execution.exec_qty,
+                            exec_type: execution.exec_type,
                             px: execution.px,
                             execution_time: execution.execution_time,
                         });

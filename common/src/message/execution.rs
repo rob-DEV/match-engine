@@ -1,5 +1,5 @@
 use bitcode::{Decode, Encode};
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub struct TradeExecution {
@@ -9,7 +9,14 @@ pub struct TradeExecution {
     pub ask_client_id: u32,
     pub bid_order_id: u32,
     pub ask_order_id: u32,
-    pub fill_qty: u32,
+    pub exec_qty: u32,
+    pub exec_type: ExecType,
     pub px: u32,
     pub execution_time: u64,
+}
+
+#[derive(Encode, Decode, PartialEq, Debug, Copy, Clone)]
+pub enum ExecType {
+    PartialFill,
+    Fill,
 }

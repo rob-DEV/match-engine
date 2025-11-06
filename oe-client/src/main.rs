@@ -27,6 +27,7 @@ fn reader(read_stream: TcpStream) {
         line.clear();
         let bytes_read = buf_reader.read_line(&mut line).unwrap();
 
+        println!("{}", line);
         if bytes_read == 0 {
             println!("Client disconnected!");
             exit(0);
@@ -35,7 +36,9 @@ fn reader(read_stream: TcpStream) {
 }
 
 fn client_connection(sequenced_message_store: Receiver<String>) {
-    let mut tcp_stream = TcpStream::connect("127.0.0.1:3001").map_err(|e| { "Failed to connect to the gateway server" }).unwrap();
+    let mut tcp_stream = TcpStream::connect("127.0.0.1:3001")
+        .map_err(|e| "Failed to connect to the gateway server")
+        .unwrap();
 
     let read_stream = tcp_stream.try_clone().unwrap();
     let write_stream = tcp_stream.try_clone().unwrap();
@@ -89,8 +92,8 @@ fn parse(input: String) -> Result<Command, ()> {
             let batch_size = tokens[1].parse::<u32>().unwrap();
             Ok(Command::Perf(batch_size))
         }
-        "quit" | "q" => { Ok(Command::Quit) }
-        _ => { Err(()) }
+        "quit" | "q" => Ok(Command::Quit),
+        _ => Err(()),
     }
 }
 
@@ -114,15 +117,24 @@ fn main() -> Result<(), Box<dyn Error>> {
             match command {
                 Command::Buy(px, qty) => {
                     fix_message = build_nos(true, px, qty);
-                    sender.clone().send(fix_message.to_string() + "\n").expect("TODO: panic message");
+                    sender
+                        .clone()
+                        .send(fix_message.to_string() + "\n")
+                        .expect("TODO: panic message");
                 }
                 Command::Sell(px, qty) => {
                     fix_message = build_nos(false, px, qty);
-                    sender.clone().send(fix_message.to_string() + "\n").expect("TODO: panic message");
+                    sender
+                        .clone()
+                        .send(fix_message.to_string() + "\n")
+                        .expect("TODO: panic message");
                 }
                 Command::Cancel(is_buy, order_id) => {
                     fix_message = build_cancel(is_buy, order_id);
-                    sender.clone().send(fix_message.to_string() + "\n").expect("TODO: panic message");
+                    sender
+                        .clone()
+                        .send(fix_message.to_string() + "\n")
+                        .expect("TODO: panic message");
                 }
                 Command::Perf(batch_size) => {
                     SHOULD_LOG.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -137,14 +149,17 @@ fn main() -> Result<(), Box<dyn Error>> {
                             order_fix = build_nos(false, px, qty);
                         }
 
-                        sender.send(order_fix.to_string() + "\n").expect("TODO: panic message");
+                        sender
+                            .send(order_fix.to_string() + "\n")
+                            .expect("TODO: panic message");
                     }
 
                     println!("Perf done!");
                     SHOULD_LOG.store(true, std::sync::atomic::Ordering::Relaxed);
-
                 }
-                Command::Quit => { exit(0); }
+                Command::Quit => {
+                    exit(0);
+                }
             }
         } else {
             println!("Not a known command!");

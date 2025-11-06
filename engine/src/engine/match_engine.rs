@@ -2,16 +2,16 @@ use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
-use common::message::cancel_order::CancelOrderAck;
-use common::message::instrument::Instrument;
-use common::message::execution::TradeExecution;
-use common::message::new_order::NewOrderAck;
+use crate::domain::execution::Execution;
 use crate::domain::order::{LimitOrder, Order};
+use common::message::cancel_order::CancelOrderAck;
+use common::message::execution::TradeExecution;
+use common::message::instrument::Instrument;
+use common::message::new_order::NewOrderAck;
 use common::transport::sequenced_message::{EngineMessage, SequencedEngineMessage};
 use common::util::time::system_nanos;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{Sender, TryRecvError};
-use crate::domain::execution::Execution;
 
 pub struct MatchEngine {
     instrument: Instrument,
@@ -59,20 +59,6 @@ impl MatchEngine {
             if let Some(inbound_order) = self.receive_inbound_order(&order_tx) {
                 match inbound_order {
                     Order::LimitOrder(mut limit_order) => {
-                        let out = SequencedEngineMessage {
-                            sequence_number: engine_msg_out_seq_num,
-                            message: EngineMessage::NewOrderAck(NewOrderAck {
-                                client_id: limit_order.client_id,
-                                side: limit_order.side,
-                                order_id: limit_order.id,
-                                px: limit_order.px,
-                                qty: limit_order.qty,
-                                ack_time: system_nanos(),
-                            }),
-                            sent_time: system_nanos(),
-                        };
-                        engine_msg_out_tx.send(out).unwrap();
-                        engine_msg_out_seq_num += 1;
                         orders_per_second += 1;
 
                         // match phase
@@ -83,7 +69,25 @@ impl MatchEngine {
                             &match_cycle_msg_out_tx,
                         );
 
-                        executions_per_second += executions;
+                        if executions == 0 {
+                            // ack full unmatched resting order - partial fill is implicitly resting
+                            let out = SequencedEngineMessage {
+                                sequence_number: engine_msg_out_seq_num,
+                                message: EngineMessage::NewOrderAck(NewOrderAck {
+                                    client_id: limit_order.client_id,
+                                    side: limit_order.side,
+                                    order_id: limit_order.id,
+                                    px: limit_order.px,
+                                    qty: limit_order.qty,
+                                    ack_time: system_nanos(),
+                                }),
+                                sent_time: system_nanos(),
+                            };
+                            engine_msg_out_tx.send(out).unwrap();
+                            engine_msg_out_seq_num += 1;
+                        } else {
+                            executions_per_second += executions;
+                        }
                     }
                     Order::Cancel(cancel_order) => {
                         let found = self.book.remove_order(&cancel_order);
@@ -170,7 +174,8 @@ impl MatchEngine {
                         ask_client_id: execution.ask.client_id,
                         bid_order_id: execution.bid.id,
                         ask_order_id: execution.ask.id,
-                        fill_qty: execution.fill_qty,
+                        exec_qty: execution.exec_qty,
+                        exec_type: execution.exec_type,
                         px: execution.bid.px,
                         execution_time: execution.execution_time,
                     }),

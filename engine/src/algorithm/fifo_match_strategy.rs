@@ -86,7 +86,10 @@ impl MatchStrategy for FifoMatchStrategy {
             }
         }
 
-        order_book.add_order(*order);
+        // If still unfilled, add to book
+        if order.qty > 0 {
+            order_book.add_order(*order)
+        }
 
         executions_buffer.len()
     }

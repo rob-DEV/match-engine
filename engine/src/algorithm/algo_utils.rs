@@ -1,6 +1,7 @@
 use crate::book::order_book::Price;
 use crate::domain::execution::Execution;
 use crate::domain::order::LimitOrder;
+use common::message::execution::ExecType;
 use common::message::side::Side;
 use common::util::time::system_nanos;
 use rand::random;
@@ -28,11 +29,18 @@ pub fn build_fill_execution(
         Side::SELL => order.clone(),
     };
 
+    let exec_type = if order.qty == fill_qty {
+        ExecType::Fill
+    } else {
+        ExecType::PartialFill
+    };
+
     Execution {
         id: random::<u32>(),
-        fill_qty,
         bid,
         ask,
+        exec_qty: fill_qty,
+        exec_type,
         execution_time: system_nanos(),
     }
 }
