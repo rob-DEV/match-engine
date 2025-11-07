@@ -6,7 +6,6 @@ use common::transport::sequenced_message::EngineMessage;
 use common::transport::sequenced_multicast_receiver::SequencedMulticastReceiver;
 use common::transport::transport_constants::MSG_IN_CHANNEL;
 use common::util::time::system_nanos;
-use rand::random;
 use std::net::UdpSocket;
 use std::sync::mpsc::Sender;
 
@@ -25,6 +24,8 @@ fn multicast_receiver_to_engine_msg_in(udp_socket: Box<UdpSocket>, oe_tx: &Sende
 
     let mut multicast_receiver = SequencedMulticastReceiver::new(udp_socket, MSG_IN_CHANNEL);
 
+    let mut init_oe_seq = 1000;
+
     loop {
         if let Some(inbound_engine_message) = multicast_receiver.try_recv() {
             if inbound_engine_message.sequence_number != last_seen_seq + 1 {
@@ -34,17 +35,20 @@ fn multicast_receiver_to_engine_msg_in(udp_socket: Box<UdpSocket>, oe_tx: &Sende
             last_seen_seq = inbound_engine_message.sequence_number;
 
             match inbound_engine_message.message {
-                EngineMessage::NewOrder(new) => oe_tx
-                    .send(Order::LimitOrder(LimitOrder {
-                        client_id: new.client_id,
-                        id: random::<u32>(),
-                        side: new.order_side,
-                        px: new.px,
-                        qty: new.qty,
-                        time_in_force: new.time_in_force,
-                        placed_time: system_nanos(),
-                    }))
-                    .unwrap(),
+                EngineMessage::NewOrder(new) => {
+                    oe_tx
+                        .send(Order::LimitOrder(LimitOrder {
+                            client_id: new.client_id,
+                            id: init_oe_seq,
+                            side: new.order_side,
+                            px: new.px,
+                            qty: new.qty,
+                            time_in_force: new.time_in_force,
+                            placed_time: system_nanos(),
+                        }))
+                        .unwrap();
+                    init_oe_seq += 1;
+                }
                 EngineMessage::CancelOrder(cancel) => oe_tx
                     .send(Order::Cancel(CancelOrder {
                         client_id: cancel.client_id,

@@ -4,6 +4,7 @@ use common::message::new_order::NewOrderAck;
 use common::message::side::Side::BUY;
 use common::transport::sequenced_message::EngineMessage;
 use std::collections::{BTreeMap, HashMap};
+use std::process::exit;
 
 #[derive(Debug)]
 struct PriceLevel {
@@ -11,6 +12,7 @@ struct PriceLevel {
     qty: u32,
 }
 
+#[derive(Debug)]
 struct OrderMetadata {
     pub px: u32,
     pub qty: u32,
@@ -89,10 +91,17 @@ impl MarketDataBook {
         });
         entry.qty += new_order_ack.qty;
 
-        self.order_metadata_map.insert(
-            new_order_ack.order_id,
-            OrderMetadata::new(new_order_ack.px, new_order_ack.qty),
-        );
+        if self
+            .order_metadata_map
+            .insert(
+                new_order_ack.order_id,
+                OrderMetadata::new(new_order_ack.px, new_order_ack.qty),
+            )
+            .is_some()
+        {
+            eprintln!("Order metadata already in map");
+            exit(0);
+        }
     }
 
     fn update_execution(&mut self, execution: &TradeExecution) {
