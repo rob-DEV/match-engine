@@ -47,9 +47,7 @@ impl MatchStrategy for ProRataMatchStrategy {
                     &opposite_book_side.order_map,
                     matched_qty,
                 );
-
-                // println!("Final allocations : \n{:?}", pro_rata_allocations);
-
+                
                 let mut remaining_qty = matched_qty;
                 let mut pro_rata_allocation_idx = 0;
                 // Match loop
@@ -81,7 +79,6 @@ impl MatchStrategy for ProRataMatchStrategy {
                     // Record execution
                     executions_buffer.push(build_fill_execution(order, resting_order, fill_qty));
 
-                    // println!("Execution: {:?}", mutable_execution_buffer[num_executions]);
                     remaining_qty -= fill_qty;
                     pro_rata_allocation_idx += 1;
                     num_executions += 1;
@@ -105,11 +102,6 @@ impl MatchStrategy for ProRataMatchStrategy {
             } else {
                 break;
             }
-        }
-
-        // If still unfilled, add to book
-        if order.qty > 0 {
-            order_book.add_order(*order)
         }
 
         executions_buffer.len()

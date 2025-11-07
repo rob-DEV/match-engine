@@ -1,12 +1,12 @@
+use crate::domain::order::Order;
 use crate::engine;
 use common::config::config::load_engine_config;
 use common::message::instrument::Instrument;
-use common::transport::sequenced_message::SequencedEngineMessage;
-use crate::domain::order::Order;
+use common::transport::sequenced_message::EngineMessage;
 use std::sync::mpsc::{Receiver, Sender};
 
 pub fn initialize_match_thread(
-    engine_msg_out_tx: Sender<SequencedEngineMessage>,
+    engine_msg_out_tx: Sender<EngineMessage>,
     order_entry_rx: Receiver<Order>,
 ) {
     let config = load_engine_config();

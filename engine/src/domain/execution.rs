@@ -4,8 +4,8 @@ use std::fmt::{Debug, Formatter};
 
 pub struct Execution {
     pub id: u32,
-    pub ask: LimitOrder,
     pub bid: LimitOrder,
+    pub ask: LimitOrder,
     pub exec_qty: u32,
     pub exec_type: ExecType,
     pub execution_time: u64,

@@ -1,6 +1,5 @@
 use crate::algorithm::algo_utils::{best_prices_cross, build_fill_execution};
 use crate::algorithm::match_strategy::MatchStrategy;
-use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
 use crate::domain::execution::Execution;
 use crate::domain::order::LimitOrder;
@@ -84,11 +83,6 @@ impl MatchStrategy for FifoMatchStrategy {
             } else {
                 break;
             }
-        }
-
-        // If still unfilled, add to book
-        if order.qty > 0 {
-            order_book.add_order(*order)
         }
 
         executions_buffer.len()

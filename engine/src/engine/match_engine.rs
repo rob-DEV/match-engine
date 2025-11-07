@@ -8,7 +8,7 @@ use common::message::cancel_order::CancelOrderAck;
 use common::message::execution::TradeExecution;
 use common::message::instrument::Instrument;
 use common::message::new_order::NewOrderAck;
-use common::transport::sequenced_message::{EngineMessage, SequencedEngineMessage};
+use common::transport::sequenced_message::EngineMessage;
 use common::util::time::system_nanos;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{Sender, TryRecvError};
@@ -39,7 +39,7 @@ impl MatchEngine {
     pub fn run(
         &mut self,
         order_tx: Receiver<Order>,
-        engine_msg_out_tx: Sender<SequencedEngineMessage>,
+        engine_msg_out_tx: Sender<EngineMessage>,
     ) -> ! {
         let match_cycle_msg_out_tx = engine_msg_out_tx.clone();
 
@@ -69,38 +69,33 @@ impl MatchEngine {
                             &match_cycle_msg_out_tx,
                         );
 
-                        if executions == 0 {
-                            // ack full unmatched resting order - partial fill is implicitly resting
-                            let out = SequencedEngineMessage {
-                                sequence_number: engine_msg_out_seq_num,
-                                message: EngineMessage::NewOrderAck(NewOrderAck {
-                                    client_id: limit_order.client_id,
-                                    side: limit_order.side,
-                                    order_id: limit_order.id,
-                                    px: limit_order.px,
-                                    qty: limit_order.qty,
-                                    ack_time: system_nanos(),
-                                }),
-                                sent_time: system_nanos(),
-                            };
+                        // add & ack full / remainder order
+                        if limit_order.qty > 0 {
+                            self.book.add_order(limit_order);
+                            let out = EngineMessage::NewOrderAck(NewOrderAck {
+                                client_id: limit_order.client_id,
+                                side: limit_order.side,
+                                order_id: limit_order.id,
+                                px: limit_order.px,
+                                qty: limit_order.qty,
+                                ack_time: system_nanos(),
+                            });
+
                             engine_msg_out_tx.send(out).unwrap();
                             engine_msg_out_seq_num += 1;
-                        } else {
-                            executions_per_second += executions;
                         }
+
+                        executions_per_second += executions;
                     }
                     Order::Cancel(cancel_order) => {
                         let found = self.book.remove_order(&cancel_order);
-                        let out = SequencedEngineMessage {
-                            sequence_number: engine_msg_out_seq_num,
-                            message: EngineMessage::CancelOrderAck(CancelOrderAck {
-                                client_id: cancel_order.client_id,
-                                order_id: cancel_order.order_id,
-                                found,
-                                ack_time: system_nanos(),
-                            }),
-                            sent_time: system_nanos(),
-                        };
+                        let out = EngineMessage::CancelOrderAck(CancelOrderAck {
+                            client_id: cancel_order.client_id,
+                            order_id: cancel_order.order_id,
+                            found,
+                            ack_time: system_nanos(),
+                        });
+
                         engine_msg_out_tx.send(out).unwrap();
                         engine_msg_out_seq_num += 1;
                         orders_per_second += 1;
@@ -151,7 +146,7 @@ impl MatchEngine {
         engine_msg_out_seq_num: &mut u32,
         execution_seq_num: &mut u32,
         order: &mut LimitOrder,
-        engine_msg_out_tx: &Sender<SequencedEngineMessage>,
+        engine_msg_out_tx: &Sender<EngineMessage>,
     ) -> u32 {
         self.cycle_executions_buffer.clear();
 
@@ -165,22 +160,18 @@ impl MatchEngine {
             .iter()
             .for_each(|execution: &Execution| {
                 let outbound_execution_message;
-                outbound_execution_message = SequencedEngineMessage {
-                    sequence_number: *engine_msg_out_seq_num,
-                    message: EngineMessage::TradeExecution(TradeExecution {
-                        trade_seq: *execution_seq_num,
-                        trade_id: execution.id,
-                        bid_client_id: execution.bid.client_id,
-                        ask_client_id: execution.ask.client_id,
-                        bid_order_id: execution.bid.id,
-                        ask_order_id: execution.ask.id,
-                        exec_qty: execution.exec_qty,
-                        exec_type: execution.exec_type,
-                        px: execution.bid.px,
-                        execution_time: execution.execution_time,
-                    }),
-                    sent_time: system_nanos(),
-                };
+                outbound_execution_message = EngineMessage::TradeExecution(TradeExecution {
+                    trade_seq: *execution_seq_num,
+                    trade_id: execution.id,
+                    bid_client_id: execution.bid.client_id,
+                    ask_client_id: execution.ask.client_id,
+                    bid_order_id: execution.bid.id,
+                    ask_order_id: execution.ask.id,
+                    exec_qty: execution.exec_qty,
+                    exec_type: execution.exec_type,
+                    px: execution.bid.px,
+                    execution_time: execution.execution_time,
+                });
 
                 engine_msg_out_tx.send(outbound_execution_message).unwrap();
 

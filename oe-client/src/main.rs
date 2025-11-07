@@ -27,7 +27,10 @@ fn reader(read_stream: TcpStream) {
         line.clear();
         let bytes_read = buf_reader.read_line(&mut line).unwrap();
 
-        println!("{}", line);
+        // if SHOULD_LOG.load(Ordering::Relaxed) {
+        //     println!("{}", line);
+        // }
+
         if bytes_read == 0 {
             println!("Client disconnected!");
             exit(0);

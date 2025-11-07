@@ -48,7 +48,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
     let engine_msg_in_thread = thread::spawn(move || {
         core_affinity::set_for_current(pinned_msg_in_core);
-        initialize_engine_msg_in_message_submitter(*ENGINE_MSG_IN_PORT, client_msg_rx)
+        initialize_engine_msg_in_message_submitter(client_msg_rx)
             .expect("failed to initialize engine MSG_IN thread");
     });
 

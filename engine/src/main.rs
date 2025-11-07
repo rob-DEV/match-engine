@@ -1,33 +1,43 @@
 use crate::process::match_thread::initialize_match_thread;
 use crate::process::msg_in_thread::initialize_engine_msg_in_thread;
 use crate::process::msg_out_thread::initialize_engine_msg_out_thread;
-use common::transport::sequenced_message::SequencedEngineMessage;
-use domain::order::Order;
+use common::transport::sequenced_message::EngineMessage;
 use common::util::time::wait_50_milli;
+use domain::order::Order;
 use lazy_static::lazy_static;
 use std::error::Error;
 use std::sync::mpsc;
 use std::sync::mpsc::{Receiver, Sender};
 use std::{env, thread};
 
-mod engine;
-mod book;
-mod process;
 mod algorithm;
+mod book;
 mod domain;
+mod engine;
+mod process;
 
 lazy_static! {
-    pub static ref ENGINE_MSG_IN_PORT: u16 = env::var("ENGINE_PORT").unwrap_or("3000".to_owned()).parse::<u16>().unwrap();
-    pub static ref ENGINE_MSG_OUT_PORT: u16 = env::var("ENGINE_PORT").unwrap_or("3500".to_owned()).parse::<u16>().unwrap();
+    pub static ref ENGINE_MSG_IN_PORT: u16 = env::var("ENGINE_PORT")
+        .unwrap_or("3000".to_owned())
+        .parse::<u16>()
+        .unwrap();
+    pub static ref ENGINE_MSG_OUT_PORT: u16 = env::var("ENGINE_PORT")
+        .unwrap_or("3500".to_owned())
+        .parse::<u16>()
+        .unwrap();
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     println!("--- Initializing Match Engine ---");
 
-    let (engine_msg_out_tx, engine_msg_out_rx): (Sender<SequencedEngineMessage>, Receiver<SequencedEngineMessage>) = mpsc::channel();
+    let (engine_msg_out_tx, engine_msg_out_rx): (Sender<EngineMessage>, Receiver<EngineMessage>) =
+        mpsc::channel();
     let (order_entry_tx, order_entry_rx): (Sender<Order>, Receiver<Order>) = mpsc::channel();
 
-    let core_ids = core_affinity::get_core_ids().unwrap().into_iter().collect::<Vec<_>>();
+    let core_ids = core_affinity::get_core_ids()
+        .unwrap()
+        .into_iter()
+        .collect::<Vec<_>>();
     let pinned_match_core = core_ids[0];
     let pinned_msg_in_core = core_ids[1];
     let pinned_msg_out_core = core_ids[2];

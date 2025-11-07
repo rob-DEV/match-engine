@@ -2,8 +2,8 @@ mod md_book;
 
 use crate::md_book::MarketDataBook;
 use common::network::mutlicast::multicast_receiver;
-use common::network::network_constants::MAX_UDP_PACKET_SIZE;
-use common::transport::sequenced_message::SequencedEngineMessage;
+use common::transport::sequenced_multicast_receiver::SequencedMulticastReceiver;
+use common::transport::transport_constants::MARKET_DATA_CHANNEL;
 use lazy_static::lazy_static;
 
 lazy_static! {
@@ -12,30 +12,33 @@ lazy_static! {
 
 fn main() {
     let udp_socket = multicast_receiver(*ENGINE_MSG_OUT_PORT);
-    let mut buffer = [0; MAX_UDP_PACKET_SIZE];
+
+    let mut multicast_receiver =
+        SequencedMulticastReceiver::new(Box::from(udp_socket), MARKET_DATA_CHANNEL);
 
     println!(
         "Initialized MSG_OUT -> Market Data Reporter multicast on port {}",
         *ENGINE_MSG_OUT_PORT
     );
 
+    let mut last_seen_seq = 0;
     let mut market_data_book = MarketDataBook::new();
 
+    let mut emit_rate = 0;
     loop {
-        match udp_socket.recv_from(&mut buffer) {
-            Ok((size, _)) => {
-                let outbound_engine_message: SequencedEngineMessage =
-                    bitcode::decode(&buffer[..size]).unwrap();
+        if let Some(outbound_engine_message) = multicast_receiver.try_recv() {
+            assert_eq!(outbound_engine_message.sequence_number, last_seen_seq + 1);
+            last_seen_seq += 1;
+            let outbound_engine_message = &outbound_engine_message.message;
 
-                let outbound_engine_message = &outbound_engine_message.message;
+            market_data_book.update_from_engine(outbound_engine_message);
 
-                market_data_book.update_from_engine(outbound_engine_message);
-
-
-                market_data_book.emit_l1();
+            // market_data_book.emit_l1();
+            if emit_rate % 1000 == 0 {
                 market_data_book.emit_l2();
             }
-            Err(_) => {}
+
+            emit_rate += 1;
         }
     }
 }
