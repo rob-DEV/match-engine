@@ -56,6 +56,8 @@ impl MatchStrategy for FifoMatchStrategy {
                             .push(build_self_match_prevention_execution(resting_order));
 
                         opposite_price_level.pop_front();
+                        opposite_price_level.total_qty -= resting_order.qty;
+                        opposite_book_side.total_qty -= resting_order.qty;
                         continue;
                     }
 

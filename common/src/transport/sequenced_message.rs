@@ -7,20 +7,20 @@ use bitcode::{Decode, Encode};
 pub type Subscriber = u32;
 pub type SequenceNumber = u32;
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub struct SequencedEngineMessage {
     pub sequence_number: SequenceNumber,
     pub message: EngineMessage,
     pub sent_time: u64,
 }
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub struct SequencedMessageAck {
     pub subscriber: Subscriber,
     pub sequence_number: SequenceNumber,
 }
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum EngineMessage {
     // OE
     NewOrder(NewOrderRequest),
