@@ -6,7 +6,7 @@ use bitcode::Buffer;
 use std::net::UdpSocket;
 use std::option::Option;
 
-pub struct SequencedMulticastReceiver {
+pub struct AckSequencedMulticastReceiver {
     subscriber: Subscriber,
     last_seen_sequence_number: SequenceNumber,
     socket: Box<UdpSocket>,
@@ -15,9 +15,9 @@ pub struct SequencedMulticastReceiver {
     udp_datagram_buffer: [u8; MAX_UDP_PACKET_SIZE],
 }
 
-impl SequencedMulticastReceiver {
+impl AckSequencedMulticastReceiver {
     pub fn new(socket: Box<UdpSocket>, subscriber: Subscriber) -> Self {
-        SequencedMulticastReceiver {
+        AckSequencedMulticastReceiver {
             subscriber,
             last_seen_sequence_number: 0,
             socket,

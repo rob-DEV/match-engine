@@ -7,7 +7,7 @@ use bitcode::Buffer;
 use std::collections::HashMap;
 use std::net::{SocketAddr, UdpSocket};
 
-pub struct SequencedMulticastSender {
+pub struct AckSequencedMulticastSender {
     sequence_number: SequenceNumber,
     sequenced_subscribers: HashMap<Subscriber, SequenceNumber>,
     socket: Box<UdpSocket>,
@@ -17,13 +17,13 @@ pub struct SequencedMulticastSender {
     udp_datagram_buffer: [u8; MAX_UDP_PACKET_SIZE],
 }
 
-impl SequencedMulticastSender {
+impl AckSequencedMulticastSender {
     pub fn new(
         socket: Box<UdpSocket>,
         socket_addr: SocketAddr,
         subscribers: Vec<Subscriber>,
     ) -> Self {
-        SequencedMulticastSender {
+        AckSequencedMulticastSender {
             sequence_number: 1,
             sequenced_subscribers: subscribers.iter().map(|sub| (*sub, 0)).collect(),
             socket,

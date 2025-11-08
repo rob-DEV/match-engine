@@ -2,7 +2,7 @@ use crate::message::GatewayMessage;
 use crate::ENGINE_MSG_IN_PORT;
 use common::network::mutlicast::multicast_sender;
 use common::transport::sequenced_message::EngineMessage;
-use common::transport::sequenced_multicast_sender::SequencedMulticastSender;
+use common::transport::ack_sequenced_multicast_sender::AckSequencedMulticastSender;
 use common::transport::transport_constants::MSG_IN_CHANNEL;
 use std::error::Error;
 use std::net::SocketAddr;
@@ -15,7 +15,7 @@ pub fn initialize_engine_msg_in_message_submitter(
     let send_addr = "239.255.0.1:3000".parse::<SocketAddr>().unwrap();
 
     let mut multicast_sender =
-        SequencedMulticastSender::new(Box::new(udp_socket), send_addr, vec![MSG_IN_CHANNEL]);
+        AckSequencedMulticastSender::new(Box::new(udp_socket), send_addr, vec![MSG_IN_CHANNEL]);
 
     println!(
         "Initialized Gateway -> MSG_IN multicast on port {}",

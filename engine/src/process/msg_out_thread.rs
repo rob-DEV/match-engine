@@ -1,7 +1,7 @@
 use crate::ENGINE_MSG_OUT_PORT;
 use common::network::mutlicast::multicast_sender;
 use common::transport::sequenced_message::EngineMessage;
-use common::transport::sequenced_multicast_sender::SequencedMulticastSender;
+use common::transport::ack_sequenced_multicast_sender::AckSequencedMulticastSender;
 use common::transport::transport_constants::{MARKET_DATA_CHANNEL, MSG_OUT_CHANNEL};
 use std::net::{SocketAddr, UdpSocket};
 use std::process::exit;
@@ -19,7 +19,7 @@ pub fn initialize_engine_msg_out_thread(rx: Receiver<EngineMessage>) -> ! {
 
 pub fn engine_msg_out_to_multicast(rx: &Receiver<EngineMessage>, udp_socket: Box<UdpSocket>) -> ! {
     let send_addr = "239.255.0.1:3500".parse::<SocketAddr>().unwrap();
-    let mut multicast_sender = SequencedMulticastSender::new(
+    let mut multicast_sender = AckSequencedMulticastSender::new(
         udp_socket,
         send_addr,
         vec![MSG_OUT_CHANNEL, MARKET_DATA_CHANNEL],

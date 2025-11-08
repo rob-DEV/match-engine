@@ -2,7 +2,7 @@ mod md_book;
 
 use crate::md_book::MarketDataBook;
 use common::network::mutlicast::multicast_receiver;
-use common::transport::sequenced_multicast_receiver::SequencedMulticastReceiver;
+use common::transport::ack_sequenced_multicast_receiver::AckSequencedMulticastReceiver;
 use common::transport::transport_constants::MARKET_DATA_CHANNEL;
 use lazy_static::lazy_static;
 
@@ -14,7 +14,7 @@ fn main() {
     let udp_socket = multicast_receiver(*ENGINE_MSG_OUT_PORT);
 
     let mut multicast_receiver =
-        SequencedMulticastReceiver::new(Box::from(udp_socket), MARKET_DATA_CHANNEL);
+        AckSequencedMulticastReceiver::new(Box::from(udp_socket), MARKET_DATA_CHANNEL);
 
     println!(
         "Initialized MSG_OUT -> Market Data Reporter multicast on port {}",

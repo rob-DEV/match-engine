@@ -3,7 +3,7 @@ use crate::ENGINE_MSG_IN_PORT;
 use common::message::cancel_order::CancelOrderRequest;
 use common::network::mutlicast::multicast_receiver;
 use common::transport::sequenced_message::EngineMessage;
-use common::transport::sequenced_multicast_receiver::SequencedMulticastReceiver;
+use common::transport::ack_sequenced_multicast_receiver::AckSequencedMulticastReceiver;
 use common::transport::transport_constants::MSG_IN_CHANNEL;
 use common::util::time::system_nanos;
 use std::net::UdpSocket;
@@ -22,7 +22,7 @@ pub fn initialize_engine_msg_in_thread(order_entry_tx: Sender<Order>) -> ! {
 fn multicast_receiver_to_engine_msg_in(udp_socket: Box<UdpSocket>, oe_tx: &Sender<Order>) -> ! {
     let mut last_seen_seq = 0;
 
-    let mut multicast_receiver = SequencedMulticastReceiver::new(udp_socket, MSG_IN_CHANNEL);
+    let mut multicast_receiver = AckSequencedMulticastReceiver::new(udp_socket, MSG_IN_CHANNEL);
 
     let mut init_oe_seq = 1000;
 

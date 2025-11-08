@@ -1,7 +1,7 @@
 use common::message::execution_report::{ExecType, ExecutionReport};
 use common::network::mutlicast::multicast_receiver;
 use common::transport::sequenced_message::EngineMessage;
-use common::transport::sequenced_multicast_receiver::SequencedMulticastReceiver;
+use common::transport::ack_sequenced_multicast_receiver::AckSequencedMulticastReceiver;
 use common::transport::transport_constants::MSG_OUT_CHANNEL;
 use common::util::time::system_nanos;
 use dashmap::DashMap;
@@ -16,7 +16,7 @@ pub fn initialize_engine_msg_out_receiver(
     let udp_socket = multicast_receiver(engine_msg_out_port);
 
     let mut multicast_receiver =
-        SequencedMulticastReceiver::new(Box::from(udp_socket), MSG_OUT_CHANNEL);
+        AckSequencedMulticastReceiver::new(Box::from(udp_socket), MSG_OUT_CHANNEL);
 
     println!(
         "Initialized MSG_OUT -> Gateway multicast on port {}",
