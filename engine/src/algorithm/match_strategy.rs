@@ -1,6 +1,6 @@
 use crate::book::order_book::LimitOrderBook;
-use crate::domain::execution::Execution;
 use crate::domain::order::LimitOrder;
+use common::message::execution_report::ExecutionReport;
 
 pub trait MatchStrategy {
     fn new() -> Self;
@@ -8,6 +8,6 @@ pub trait MatchStrategy {
         &mut self,
         order_book: &mut LimitOrderBook,
         order: &mut LimitOrder,
-        mutable_execution_buffer: &mut Vec<Execution>,
+        mutable_execution_buffer: &mut Vec<ExecutionReport>,
     ) -> usize;
 }

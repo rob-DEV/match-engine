@@ -34,7 +34,7 @@ fn main() {
             market_data_book.update_from_engine(outbound_engine_message);
 
             // market_data_book.emit_l1();
-            if emit_rate % 10000 == 0 {
+            if emit_rate % 1 == 0 {
                 market_data_book.emit_l2();
             }
 

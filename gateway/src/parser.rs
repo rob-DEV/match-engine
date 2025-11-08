@@ -1,12 +1,11 @@
 use crate::message::GatewayMessage;
+use common::message::cancel_order::CancelOrderRequest;
+use common::message::new_order::{NewOrderRequest, TimeInForce};
 use common::message::side::Side;
-use common::transport::sequenced_message::EngineMessage;
 use common::util::time::system_nanos;
 use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;
 use fefix::tagvalue::{Config, DecodeError, Decoder, Encoder};
-use common::message::cancel_order::CancelOrder;
-use common::message::new_order::{NewOrder, TimeInForce};
 
 pub struct MessageConverter {
     fix_decoder: Decoder,
@@ -46,7 +45,7 @@ impl MessageConverter {
                     order_side = Side::SELL;
                 }
 
-                GatewayMessage::LimitOrder(NewOrder {
+                GatewayMessage::LimitOrder(NewOrderRequest {
                     client_id,
                     order_side,
                     px: fix_msg_px,
@@ -64,7 +63,7 @@ impl MessageConverter {
                     order_side = Side::SELL;
                 }
 
-                GatewayMessage::CancelOrder(CancelOrder {
+                GatewayMessage::CancelOrder(CancelOrderRequest {
                     client_id,
                     order_side,
                     order_id: fix_msg_order_id,

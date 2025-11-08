@@ -1,10 +1,10 @@
-use common::message::cancel_order::CancelOrderAck;
-use common::message::execution::TradeExecution;
+use common::message::execution_report::{ExecType, ExecutionReport};
 use common::message::new_order::NewOrderAck;
+use common::message::side::Side;
 use common::message::side::Side::BUY;
+use common::message::side::Side::SELL;
 use common::transport::sequenced_message::EngineMessage;
 use std::collections::{BTreeMap, HashMap};
-use std::process::exit;
 
 #[derive(Debug)]
 struct PriceLevel {
@@ -14,13 +14,14 @@ struct PriceLevel {
 
 #[derive(Debug)]
 struct OrderMetadata {
+    pub side: Side,
     pub px: u32,
     pub qty: u32,
 }
 
 impl OrderMetadata {
-    pub fn new(px: u32, qty: u32) -> Self {
-        OrderMetadata { px, qty }
+    pub fn new(side: Side, px: u32, qty: u32) -> Self {
+        OrderMetadata { side, px, qty }
     }
 }
 
@@ -43,11 +44,12 @@ impl MarketDataBook {
         match engine_message {
             EngineMessage::NewOrderAck(new_order_ack) => self.update_new(new_order_ack),
             EngineMessage::CancelOrderAck(cancel_order_ack) => {
-                self.update_cancel(&cancel_order_ack)
+                self.update_cancel(cancel_order_ack.order_id)
             }
-            EngineMessage::TradeExecution(execution) => {
-                self.update_execution(&execution);
-            }
+            EngineMessage::TradeExecution(execution) => match execution.exec_type {
+                ExecType::MatchEvent => self.update_execution(&execution),
+                ExecType::SelfMatchPrevented => self.update_smp_execution(&execution),
+            },
             _ => {}
         }
     }
@@ -91,20 +93,13 @@ impl MarketDataBook {
         });
         entry.qty += new_order_ack.qty;
 
-        if self
-            .order_metadata_map
-            .insert(
-                new_order_ack.order_id,
-                OrderMetadata::new(new_order_ack.px, new_order_ack.qty),
-            )
-            .is_some()
-        {
-            eprintln!("Order metadata already in map");
-            exit(0);
-        }
+        self.order_metadata_map.insert(
+            new_order_ack.order_id,
+            OrderMetadata::new(new_order_ack.side, new_order_ack.px, new_order_ack.qty),
+        );
     }
 
-    fn update_execution(&mut self, execution: &TradeExecution) {
+    fn update_execution(&mut self, execution: &ExecutionReport) {
         let executed_qty = execution.exec_qty;
 
         if let Some(bid_order_metadata) = self.order_metadata_map.get_mut(&execution.bid_order_id) {
@@ -143,5 +138,36 @@ impl MarketDataBook {
             }
         }
     }
-    fn update_cancel(&mut self, cancel_order_ack: &CancelOrderAck) {}
+
+    fn update_smp_execution(&mut self, execution: &ExecutionReport) {
+        let smp_order_id = if execution.bid_order_id != 0 {
+            execution.bid_order_id
+        } else {
+            execution.ask_order_id
+        };
+
+        self.update_cancel(smp_order_id)
+    }
+
+    fn update_cancel(&mut self, cancel_order_id: u32) {
+        if let Some(order_metadata) = self.order_metadata_map.get(&cancel_order_id) {
+            let order_side = order_metadata.side;
+            let order_px = order_metadata.px;
+            let order_qty = order_metadata.qty;
+
+            let side_price_level_treemap = match order_side {
+                BUY => &mut self.bids_levels,
+                SELL => &mut self.asks_levels,
+            };
+
+            let price_level = side_price_level_treemap.get_mut(&order_px).unwrap();
+
+            price_level.qty -= order_qty;
+            if price_level.qty == 0 {
+                side_price_level_treemap.remove(&order_px);
+            }
+
+            self.order_metadata_map.remove(&cancel_order_id);
+        }
+    }
 }

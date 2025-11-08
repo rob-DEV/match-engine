@@ -2,7 +2,7 @@ use crate::message::side::Side;
 use bitcode::{Decode, Encode};
 
 #[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
-pub struct NewOrder {
+pub struct NewOrderRequest {
     pub client_id: u32,
     pub order_side: Side,
     pub px: u32,

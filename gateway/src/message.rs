@@ -1,10 +1,10 @@
 use bitcode::{Decode, Encode};
-use common::message::cancel_order::CancelOrder;
-use common::message::new_order::NewOrder;
+use common::message::cancel_order::CancelOrderRequest;
+use common::message::new_order::NewOrderRequest;
 
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub enum GatewayMessage {
-    LimitOrder(NewOrder),
-    MarketOrder(NewOrder),
-    CancelOrder(CancelOrder),
+    LimitOrder(NewOrderRequest),
+    MarketOrder(NewOrderRequest),
+    CancelOrder(CancelOrderRequest),
 }

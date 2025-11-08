@@ -1,6 +1,6 @@
 use crate::book::book::Book;
 use crate::book::book_side::BookSide;
-use common::message::cancel_order::CancelOrder;
+use common::message::cancel_order::CancelOrderRequest;
 use crate::domain::order::LimitOrder;
 use common::message::side::Side::{BUY, SELL};
 
@@ -31,7 +31,7 @@ impl Book for LimitOrderBook {
         };
     }
 
-    fn remove_order(&mut self, order: &CancelOrder) -> bool {
+    fn remove_order(&mut self, order: &CancelOrderRequest) -> bool {
         match order.order_side {
             BUY => {
                 self.bids.remove_order(order.order_id);

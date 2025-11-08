@@ -1,6 +1,6 @@
 use crate::domain::order::{LimitOrder, Order};
 use crate::ENGINE_MSG_IN_PORT;
-use common::message::cancel_order::CancelOrder;
+use common::message::cancel_order::CancelOrderRequest;
 use common::network::mutlicast::multicast_receiver;
 use common::transport::sequenced_message::EngineMessage;
 use common::transport::sequenced_multicast_receiver::SequencedMulticastReceiver;
@@ -50,7 +50,7 @@ fn multicast_receiver_to_engine_msg_in(udp_socket: Box<UdpSocket>, oe_tx: &Sende
                     init_oe_seq += 1;
                 }
                 EngineMessage::CancelOrder(cancel) => oe_tx
-                    .send(Order::Cancel(CancelOrder {
+                    .send(Order::Cancel(CancelOrderRequest {
                         client_id: cancel.client_id,
                         order_side: cancel.order_side,
                         order_id: cancel.order_id,

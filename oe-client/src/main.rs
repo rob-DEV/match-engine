@@ -28,7 +28,7 @@ fn reader(read_stream: TcpStream) {
         let bytes_read = buf_reader.read_line(&mut line).unwrap();
 
         // if SHOULD_LOG.load(Ordering::Relaxed) {
-        //     println!("{}", line);
+        println!("{}", line);
         // }
 
         if bytes_read == 0 {
@@ -63,7 +63,7 @@ enum Command {
     Buy(u32, u32),
     Sell(u32, u32),
     Cancel(bool, u32),
-    Perf(u32),
+    Perf(bool, u32),
     Quit,
 }
 
@@ -92,8 +92,13 @@ fn parse(input: String) -> Result<Command, ()> {
             }
         }
         "perf" | "p" => {
-            let batch_size = tokens[1].parse::<u32>().unwrap();
-            Ok(Command::Perf(batch_size))
+            let side = tokens[1];
+            let batch_size = tokens[2].parse::<u32>().unwrap();
+            if side == "b" {
+                Ok(Command::Perf(true, batch_size))
+            } else {
+                Ok(Command::Perf(false, batch_size))
+            }
         }
         "quit" | "q" => Ok(Command::Quit),
         _ => Err(()),
@@ -139,19 +144,14 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .send(fix_message.to_string() + "\n")
                         .expect("TODO: panic message");
                 }
-                Command::Perf(batch_size) => {
+                Command::Perf(is_buy, batch_size) => {
                     SHOULD_LOG.store(false, std::sync::atomic::Ordering::Relaxed);
                     for _ in 0..batch_size {
                         let order_fix;
                         let px = (random::<u32>() % 100) + 1;
                         let qty = (random::<u32>() % 100) + 1;
 
-                        if random::<u32>() % 2 == 0 {
-                            order_fix = build_nos(true, px, qty);
-                        } else {
-                            order_fix = build_nos(false, px, qty);
-                        }
-
+                        order_fix = build_nos(is_buy, px, qty);
                         sender
                             .send(order_fix.to_string() + "\n")
                             .expect("TODO: panic message");

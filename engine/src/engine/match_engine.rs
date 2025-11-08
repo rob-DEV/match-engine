@@ -2,10 +2,10 @@ use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
-use crate::domain::execution::Execution;
 use crate::domain::order::{LimitOrder, Order};
-use common::message::cancel_order::CancelOrderAck;
-use common::message::execution::TradeExecution;
+use common::message::cancel_order::Reason::ClientRequested;
+use common::message::cancel_order::{CancelOrderStatus, CancelledOrderAck};
+use common::message::execution_report::ExecutionReport;
 use common::message::instrument::Instrument;
 use common::message::new_order::NewOrderAck;
 use common::transport::sequenced_message::EngineMessage;
@@ -17,7 +17,7 @@ pub struct MatchEngine {
     instrument: Instrument,
     book: LimitOrderBook,
     match_strategy: FifoMatchStrategy,
-    cycle_executions_buffer: Vec<Execution>,
+    cycle_executions_buffer: Vec<ExecutionReport>,
 }
 
 impl MatchEngine {
@@ -88,11 +88,16 @@ impl MatchEngine {
                         executions_per_second += executions;
                     }
                     Order::Cancel(cancel_order) => {
-                        let found = self.book.remove_order(&cancel_order);
-                        let out = EngineMessage::CancelOrderAck(CancelOrderAck {
+                        let cancel_order_status = match self.book.remove_order(&cancel_order) {
+                            true => CancelOrderStatus::Cancelled,
+                            false => CancelOrderStatus::NotFound,
+                        };
+
+                        let out = EngineMessage::CancelOrderAck(CancelledOrderAck {
                             client_id: cancel_order.client_id,
                             order_id: cancel_order.order_id,
-                            found,
+                            cancel_order_status,
+                            reason: ClientRequested,
                             ack_time: system_nanos(),
                         });
 
@@ -156,28 +161,14 @@ impl MatchEngine {
             &mut self.cycle_executions_buffer,
         );
 
-        self.cycle_executions_buffer
-            .iter()
-            .for_each(|execution: &Execution| {
-                let outbound_execution_message;
-                outbound_execution_message = EngineMessage::TradeExecution(TradeExecution {
-                    trade_seq: *execution_seq_num,
-                    trade_id: execution.id,
-                    bid_client_id: execution.bid.client_id,
-                    ask_client_id: execution.ask.client_id,
-                    bid_order_id: execution.bid.id,
-                    ask_order_id: execution.ask.id,
-                    exec_qty: execution.exec_qty,
-                    exec_type: execution.exec_type,
-                    px: execution.bid.px,
-                    execution_time: execution.execution_time,
-                });
+        for execution_report in self.cycle_executions_buffer.drain(..) {
+            let outbound_execution_message = EngineMessage::TradeExecution(execution_report);
 
-                engine_msg_out_tx.send(outbound_execution_message).unwrap();
+            engine_msg_out_tx.send(outbound_execution_message).unwrap();
 
-                *engine_msg_out_seq_num += 1;
-                *execution_seq_num += 1;
-            });
+            *engine_msg_out_seq_num += 1;
+            *execution_seq_num += 1;
+        }
 
         num_executions as u32
     }

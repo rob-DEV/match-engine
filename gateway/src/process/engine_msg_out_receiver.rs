@@ -1,8 +1,9 @@
-use common::message::execution::TradeExecution;
+use common::message::execution_report::{ExecType, ExecutionReport};
 use common::network::mutlicast::multicast_receiver;
 use common::transport::sequenced_message::EngineMessage;
 use common::transport::sequenced_multicast_receiver::SequencedMulticastReceiver;
 use common::transport::transport_constants::MSG_OUT_CHANNEL;
+use common::util::time::system_nanos;
 use dashmap::DashMap;
 use std::error::Error;
 use std::sync::mpsc::Sender;
@@ -44,17 +45,21 @@ pub fn initialize_engine_msg_out_receiver(
                     let bid_client_id = execution.bid_client_id;
                     let ask_client_id = execution.ask_client_id;
 
-                    let ask_exec = EngineMessage::TradeExecution(TradeExecution {
+                    let ask_exec = EngineMessage::TradeExecution(ExecutionReport {
                         trade_id: execution.trade_id,
                         trade_seq: execution.trade_seq,
                         bid_client_id: execution.bid_client_id,
-                        ask_client_id: execution.ask_client_id,
                         bid_order_id: execution.bid_order_id,
+                        bid_order_px: execution.bid_order_px,
+                        bid_fill_type: execution.bid_fill_type,
+                        ask_client_id: execution.ask_client_id,
                         ask_order_id: execution.ask_order_id,
+                        ask_order_px: execution.ask_order_px,
+                        ask_fill_type: execution.ask_fill_type,
                         exec_qty: execution.exec_qty,
-                        exec_type: execution.exec_type,
-                        px: execution.px,
-                        execution_time: execution.execution_time,
+                        exec_px: execution.exec_px,
+                        exec_type: ExecType::MatchEvent,
+                        execution_time: system_nanos(),
                     });
 
                     let bid_tx = session_data.get(&bid_client_id).unwrap();

@@ -1,7 +1,7 @@
-use crate::message::cancel_order::{CancelOrder, CancelOrderAck};
+use crate::message::cancel_order::{CancelOrderRequest, CancelledOrderAck};
 use crate::message::engine::{EngineError, RejectionMessage};
-use crate::message::execution::TradeExecution;
-use crate::message::new_order::{NewOrder, NewOrderAck};
+use crate::message::execution_report::ExecutionReport;
+use crate::message::new_order::{NewOrderAck, NewOrderRequest};
 use bitcode::{Decode, Encode};
 
 pub type Subscriber = u32;
@@ -23,11 +23,11 @@ pub struct SequencedMessageAck {
 #[derive(Encode, Decode, PartialEq, Debug)]
 pub enum EngineMessage {
     // OE
-    NewOrder(NewOrder),
+    NewOrder(NewOrderRequest),
     NewOrderAck(NewOrderAck),
-    CancelOrder(CancelOrder),
-    CancelOrderAck(CancelOrderAck),
-    TradeExecution(TradeExecution),
+    CancelOrder(CancelOrderRequest),
+    CancelOrderAck(CancelledOrderAck),
+    TradeExecution(ExecutionReport),
     RejectionMessage(RejectionMessage),
 
     // SYS
