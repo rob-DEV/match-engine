@@ -7,6 +7,7 @@ use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::TcpStream;
+use tokio::sync::mpsc::UnboundedSender;
 use common::transport::sequenced_message::EngineMessage;
 
 struct ClientSessionState {
@@ -23,7 +24,7 @@ impl ClientSessionState {
 
 pub async fn on_client_connection(
     connection: (TcpStream, SocketAddr),
-    inbound_engine_message_tx: Sender<GatewayMessage>,
+    inbound_engine_message_tx: UnboundedSender<GatewayMessage>,
     client_msg_tx_map: Arc<DashMap<u32, Sender<EngineMessage>>>,
 ) {
     println!("Client connected!");

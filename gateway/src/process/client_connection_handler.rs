@@ -7,9 +7,10 @@ use std::error::Error;
 use std::net::SocketAddr;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedSender;
 
 pub async fn initialize_gateway_session_handler(
-    inbound_engine_message_tx: Sender<GatewayMessage>,
+    inbound_engine_message_tx: UnboundedSender<GatewayMessage>,
     session_msg_tx_map: Arc<DashMap<u32, Sender<EngineMessage>>>,
 ) -> Result<(), Box<dyn Error>> {
     let tcp_listener =

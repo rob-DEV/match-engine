@@ -28,7 +28,7 @@ fn reader(read_stream: TcpStream) {
         let bytes_read = buf_reader.read_line(&mut line).unwrap();
 
         // if SHOULD_LOG.load(Ordering::Relaxed) {
-        println!("{}", line);
+        // println!("{}", line);
         // }
 
         if bytes_read == 0 {

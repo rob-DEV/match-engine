@@ -6,10 +6,10 @@ use common::transport::sequenced_multicast_sender::SequencedMulticastSender;
 use common::transport::transport_constants::MSG_IN_CHANNEL;
 use std::error::Error;
 use std::net::SocketAddr;
-use std::sync::mpsc::Receiver;
+use tokio::sync::mpsc::UnboundedReceiver;
 
 pub fn initialize_engine_msg_in_message_submitter(
-    rx: Receiver<GatewayMessage>,
+    mut rx: UnboundedReceiver<GatewayMessage>,
 ) -> Result<(), Box<dyn Error>> {
     let udp_socket = multicast_sender();
     let send_addr = "239.255.0.1:3000".parse::<SocketAddr>().unwrap();

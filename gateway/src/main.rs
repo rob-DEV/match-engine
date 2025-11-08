@@ -14,6 +14,7 @@ use std::error::Error;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{mpsc, Arc};
 use std::{env, thread};
+use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
 lazy_static! {
     pub static ref GATEWAY_PORT: u16 = env::var("GATEWAY_PORT")
@@ -41,8 +42,10 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let pinned_msg_in_core = core_ids[1];
     let pinned_msg_out_core = core_ids[2];
 
-    let (client_msg_tx, client_msg_rx): (Sender<GatewayMessage>, Receiver<GatewayMessage>) =
-        mpsc::channel();
+    let (client_msg_tx, client_msg_rx): (
+        UnboundedSender<GatewayMessage>,
+        UnboundedReceiver<GatewayMessage>,
+    ) = tokio::sync::mpsc::unbounded_channel();
 
     let client_msg_in_to_engine_map = Arc::new(DashMap::<u32, Sender<EngineMessage>>::new());
 
