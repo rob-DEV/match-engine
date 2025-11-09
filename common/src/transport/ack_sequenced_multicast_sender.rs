@@ -49,10 +49,15 @@ impl AckSequencedMulticastSender {
             .send_to(&encoded, self.socket_addr)
             .expect("TODO: panic message");
 
-        // Wait for ACK from all
+        self.wait_for_subscriber_acks();
+
+        self.sequence_number += 1;
+    }
+
+    fn wait_for_subscriber_acks(&mut self) {
         for _ in 0..self.sequenced_subscribers.len() {
             match self.socket.recv_from(&mut self.udp_datagram_buffer) {
-                Ok((size, sock_addr)) => {
+                Ok((size, _)) => {
                     let ack: SequencedMessageAck =
                         bitcode::decode(&self.udp_datagram_buffer[..size]).unwrap();
 
@@ -64,7 +69,5 @@ impl AckSequencedMulticastSender {
                 _ => {}
             }
         }
-
-        self.sequence_number += 1;
     }
 }

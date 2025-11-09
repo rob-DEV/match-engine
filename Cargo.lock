@@ -300,6 +300,7 @@ version = "0.1.0"
 dependencies = [
  "bitcode",
  "config",
+ "dashmap",
  "lazy_static",
  "minstant",
  "nix",

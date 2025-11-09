@@ -11,3 +11,4 @@ socket2 = { version = "0.5.8", features = ["all"] }
 lazy_static = "1.5.0"
 minstant = "0.1.7"
 nix = { version = "0.30.1", features = ["socket", "uio", "net", "time"] }
+dashmap = "6.1.0"
