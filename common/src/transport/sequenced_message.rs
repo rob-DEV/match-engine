@@ -21,6 +21,11 @@ pub struct SequencedMessageAck {
 }
 
 #[derive(Encode, Decode, Debug)]
+pub struct SequencedMessageNack {
+    pub requested_sequence_number: SequenceNumber,
+}
+
+#[derive(Encode, Decode, Debug)]
 pub enum EngineMessage {
     // OE
     NewOrder(NewOrderRequest),
