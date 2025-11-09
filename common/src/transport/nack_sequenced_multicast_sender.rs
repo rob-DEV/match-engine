@@ -48,7 +48,7 @@ impl NackSequencedMulticastSender {
                         Err(_) => continue,
                     };
 
-                    println!("Got nack for {}", nack.requested_sequence_number);
+                    // println!("Got nack for {}", nack.requested_sequence_number);
 
                     let req = nack.requested_sequence_number;
                     let idx = (req as usize) % MAX_MESSAGE_RETRANSMISSION_RING;

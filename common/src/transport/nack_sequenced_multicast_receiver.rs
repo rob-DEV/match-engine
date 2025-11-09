@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-const NACK_INTERVAL_NS: u64 = 2_000_000;
+const NACK_INTERVAL_NS: u64 = 50_000;
 pub struct NackSequencedMulticastReceiver {
     last_seen_sequence_number: SequenceNumber, // keep for try_recv() convenience
     last_seen_atomic: Arc<AtomicU32>,          // shared with the NACK thread
@@ -34,9 +34,11 @@ impl NackSequencedMulticastReceiver {
         let last_seen_atomic = Arc::new(AtomicU32::new(0));
         let outstanding_nacks = Arc::new(DashMap::<SequenceNumber, u64>::new());
 
-        // Socket for nack and retransmission
-        let retrans_recv_socket = multicast_sender(); // replace with real retrans receiver in production
-        let nack_send_socket = multicast_sender(); // replace with real nack sender (unicast) in production
+        // Single socket for NACK send and retrans receive (replies come back to the source port)
+        let nack_io_socket = multicast_sender();
+        let retrans_recv_socket = nack_io_socket.try_clone().unwrap();
+
+        let nack_send_socket = nack_io_socket;
 
         let ring_for_main = recv_side_ring.clone();
         let ring_for_retrans = recv_side_ring.clone();
@@ -133,7 +135,7 @@ impl NackSequencedMulticastReceiver {
         let slot = &self.msg_ring[index];
 
         if let Some(msg) = slot.load(expected_sequence_number) {
-            println!("Found!: index {} seq: {}", index, msg.sequence_number);
+            // println!("Found!: index {} seq: {}", index, msg.sequence_number);
             self.last_seen_sequence_number = msg.sequence_number;
             // Update atomic
             self.last_seen_atomic
