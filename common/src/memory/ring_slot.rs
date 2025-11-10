@@ -1,17 +1,20 @@
 use crate::memory::memory::item;
 use std::cell::UnsafeCell;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 
-pub struct RingSlot<T> {
+#[repr(align(64))]
+pub struct TransportRingSlot<T> {
     pub(crate) seq: AtomicU32,
     pub(crate) msg: UnsafeCell<T>,
+    pub(crate) last_nack_ns: AtomicU64,
 }
 
-impl<T> RingSlot<T> {
+impl<T> TransportRingSlot<T> {
     pub fn new() -> Self {
-        RingSlot {
+        TransportRingSlot {
             seq: AtomicU32::new(0),
             msg: UnsafeCell::new(item::<T>()),
+            last_nack_ns: AtomicU64::new(0),
         }
     }
 
@@ -21,6 +24,7 @@ impl<T> RingSlot<T> {
         }
 
         self.seq.store(seq, Ordering::Release);
+        self.last_nack_ns.store(0, Ordering::Release);
     }
 
     pub fn load(&self, expected_seq: u32) -> Option<&T> {
@@ -31,6 +35,18 @@ impl<T> RingSlot<T> {
         }
         unsafe { Some(&*self.msg.get()) }
     }
+
+    pub fn set_nack(&self, now_ns: u64) {
+        self.last_nack_ns.store(now_ns, Ordering::Release);
+    }
+
+    pub fn clear_nack(&self) {
+        self.last_nack_ns.store(0, Ordering::Release);
+    }
+
+    pub fn last_nack(&self) -> u64 {
+        self.last_nack_ns.load(Ordering::Acquire)
+    }
 }
 
-unsafe impl<T> Sync for RingSlot<T> {}
+unsafe impl<T> Sync for TransportRingSlot<T> {}

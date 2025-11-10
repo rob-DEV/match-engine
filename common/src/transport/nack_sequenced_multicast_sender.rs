@@ -1,4 +1,4 @@
-use crate::memory::ring_slot::RingSlot;
+use crate::memory::ring_slot::TransportRingSlot;
 use crate::network::mutlicast::multicast_receiver;
 use crate::network::network_constants::MAX_UDP_PACKET_SIZE;
 use crate::transport::sequenced_message::{
@@ -16,14 +16,14 @@ pub struct NackSequencedMulticastSender {
     socket_addr: SocketAddr,
     sequence_number: SequenceNumber,
     encode_buf: Buffer,
-    resend_ring: Arc<Vec<RingSlot<SequencedEngineMessage>>>,
+    resend_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>>,
 }
 
 impl NackSequencedMulticastSender {
     pub fn new(socket: UdpSocket, socket_addr: SocketAddr) -> Self {
-        let resend_ring: Arc<Vec<RingSlot<SequencedEngineMessage>>> = Arc::new(
+        let resend_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>> = Arc::new(
             (0..MAX_MESSAGE_RETRANSMISSION_RING)
-                .map(|_| RingSlot::new())
+                .map(|_| TransportRingSlot::new())
                 .collect(),
         );
 

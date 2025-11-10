@@ -1,4 +1,4 @@
-use crate::memory::ring_slot::RingSlot;
+use crate::memory::ring_slot::TransportRingSlot;
 use crate::network::mutlicast::multicast_sender;
 use crate::network::network_constants::MAX_UDP_PACKET_SIZE;
 use crate::transport::sequenced_message::{
@@ -7,7 +7,6 @@ use crate::transport::sequenced_message::{
 use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
 use crate::util::time::system_nanos;
 use bitcode::Buffer;
-use dashmap::DashMap;
 use std::io::ErrorKind;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -19,20 +18,18 @@ const NACK_INTERVAL_NS: u64 = 50_000;
 pub struct NackSequencedMulticastReceiver {
     last_seen_sequence_number: SequenceNumber, // keep for try_recv() convenience
     last_seen_atomic: Arc<AtomicU32>,          // shared with the NACK thread
-    msg_ring: Arc<Vec<RingSlot<SequencedEngineMessage>>>,
-    outstanding_nacks: Arc<DashMap<SequenceNumber, u64>>, // shared map
+    transport_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>>,
 }
 
 impl NackSequencedMulticastReceiver {
     pub fn new(recv_socket: Box<UdpSocket>) -> Self {
-        let recv_side_ring: Arc<Vec<RingSlot<SequencedEngineMessage>>> = Arc::new(
+        let recv_side_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>> = Arc::new(
             (0..MAX_MESSAGE_RETRANSMISSION_RING)
-                .map(|_| RingSlot::new())
+                .map(|_| TransportRingSlot::new())
                 .collect(),
         );
 
         let last_seen_atomic = Arc::new(AtomicU32::new(0));
-        let outstanding_nacks = Arc::new(DashMap::<SequenceNumber, u64>::new());
 
         // Single socket for NACK send and retrans receive (replies come back to the source port)
         let nack_io_socket = multicast_sender();
@@ -42,9 +39,8 @@ impl NackSequencedMulticastReceiver {
 
         let ring_for_main = recv_side_ring.clone();
         let ring_for_retrans = recv_side_ring.clone();
+        let ring_for_nack_recv = recv_side_ring.clone();
 
-        let outstanding_for_retrans = outstanding_nacks.clone();
-        let outstanding_for_nack = outstanding_nacks.clone();
         let last_seen_for_nack = last_seen_atomic.clone();
 
         // Thread: multicast feed
@@ -70,7 +66,6 @@ impl NackSequencedMulticastReceiver {
         // Thread: retransmit receiver
         thread::spawn(move || {
             let mut buf = [0u8; MAX_UDP_PACKET_SIZE];
-            let map = outstanding_for_retrans;
 
             loop {
                 match retrans_recv_socket.recv_from(&mut buf) {
@@ -80,8 +75,6 @@ impl NackSequencedMulticastReceiver {
                             let idx = seq as usize % MAX_MESSAGE_RETRANSMISSION_RING;
                             let slot = &ring_for_retrans[idx];
                             slot.store(seq, msg);
-                            // clear outstanding nack for this seq
-                            map.remove(&seq);
                         }
                         continue;
                     }
@@ -94,18 +87,16 @@ impl NackSequencedMulticastReceiver {
         // Thread: periodic NACK sender — uses the shared last_seen_atomic and outstanding map.
         thread::spawn(move || {
             let mut encoding_buf = Buffer::new();
-            let mut map = outstanding_for_nack;
 
             loop {
                 let expected = last_seen_for_nack.load(Ordering::Acquire) + 1;
                 // check ring to see if present
                 let idx = (expected as usize) % MAX_MESSAGE_RETRANSMISSION_RING;
+                let slot = &ring_for_nack_recv[idx];
 
                 let now = system_nanos();
-                let should_send = match map.get(&expected) {
-                    None => true,
-                    Some(last) => now.saturating_sub(*last) >= NACK_INTERVAL_NS,
-                };
+                let should_send = now.saturating_sub(slot.last_nack_ns.load(Ordering::Acquire))
+                    >= NACK_INTERVAL_NS;
                 if should_send {
                     let nack = SequencedMessageNack {
                         requested_sequence_number: expected,
@@ -114,7 +105,8 @@ impl NackSequencedMulticastReceiver {
 
                     let nack_listen_addr = "239.255.0.1:9000".parse::<SocketAddr>().unwrap();
                     let _ = nack_send_socket.send_to(&encoded, nack_listen_addr);
-                    map.insert(expected, now);
+
+                    slot.last_nack_ns.store(now, Ordering::Release);
                 }
 
                 thread::sleep(Duration::from_micros(5));
@@ -124,15 +116,14 @@ impl NackSequencedMulticastReceiver {
         NackSequencedMulticastReceiver {
             last_seen_sequence_number: 0,
             last_seen_atomic,
-            msg_ring: recv_side_ring,
-            outstanding_nacks,
+            transport_ring: recv_side_ring,
         }
     }
 
     pub fn try_recv(&mut self) -> Option<&SequencedEngineMessage> {
         let expected_sequence_number = self.last_seen_sequence_number + 1;
         let index = expected_sequence_number as usize % MAX_MESSAGE_RETRANSMISSION_RING;
-        let slot = &self.msg_ring[index];
+        let slot = &self.transport_ring[index];
 
         if let Some(msg) = slot.load(expected_sequence_number) {
             // println!("Found!: index {} seq: {}", index, msg.sequence_number);
@@ -142,14 +133,15 @@ impl NackSequencedMulticastReceiver {
                 .store(self.last_seen_sequence_number, Ordering::Release);
 
             // Remove sequence number from NACK map
-            let mut map = &self.outstanding_nacks;
-            map.remove(&expected_sequence_number);
+            slot.set_nack(0);
             return Some(msg);
         } else {
             // Register a NACK and handle in timer thread
             let now = system_nanos();
-            let mut map = &self.outstanding_nacks;
-            map.entry(expected_sequence_number).or_insert(now);
+            let last = slot.last_nack();
+            if last == 0 {
+                slot.set_nack(now);
+            }
             return None;
         }
     }
