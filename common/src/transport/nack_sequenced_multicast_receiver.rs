@@ -1,8 +1,9 @@
+use crate::memory::ring_buffer::RingBuffer;
 use crate::memory::ring_slot::TransportRingSlot;
 use crate::network::mutlicast::multicast_sender;
 use crate::network::network_constants::MAX_UDP_PACKET_SIZE;
 use crate::transport::sequenced_message::{
-    SequenceNumber, SequencedEngineMessage, SequencedMessageNack,
+    SequenceNumber, SequencedEngineMessage, SequencedMessageRangeNack,
 };
 use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
 use crate::util::time::system_nanos;
@@ -19,15 +20,19 @@ pub struct NackSequencedMulticastReceiver {
     last_seen_sequence_number: SequenceNumber, // keep for try_recv() convenience
     last_seen_atomic: Arc<AtomicU32>,          // shared with the NACK thread
     transport_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>>,
+    nack_ring: Arc<RingBuffer>,
 }
 
 impl NackSequencedMulticastReceiver {
-    pub fn new(recv_socket: Box<UdpSocket>) -> Self {
+    pub fn new(recv_socket: UdpSocket, nack_port: u16) -> Self {
         let recv_side_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>> = Arc::new(
             (0..MAX_MESSAGE_RETRANSMISSION_RING)
                 .map(|_| TransportRingSlot::new())
                 .collect(),
         );
+
+        let nack_ring = Arc::new(RingBuffer::new(4096));
+        let nack_ring_for_nack_sender = nack_ring.clone();
 
         let last_seen_atomic = Arc::new(AtomicU32::new(0));
 
@@ -39,9 +44,6 @@ impl NackSequencedMulticastReceiver {
 
         let ring_for_main = recv_side_ring.clone();
         let ring_for_retrans = recv_side_ring.clone();
-        let ring_for_nack_recv = recv_side_ring.clone();
-
-        let last_seen_for_nack = last_seen_atomic.clone();
 
         // Thread: multicast feed
         thread::spawn(move || {
@@ -87,29 +89,44 @@ impl NackSequencedMulticastReceiver {
         // Thread: periodic NACK sender — uses the shared last_seen_atomic and outstanding map.
         thread::spawn(move || {
             let mut encoding_buf = Buffer::new();
+            let mut batch = Vec::<u32>::with_capacity(1024);
+            let nack_listen_addr = SocketAddr::from(([239, 255, 0, 1], nack_port));
 
+            while let Some(seq) = nack_ring_for_nack_sender.pop() {}
             loop {
-                let expected = last_seen_for_nack.load(Ordering::Acquire) + 1;
-                // check ring to see if present
-                let idx = (expected as usize) % MAX_MESSAGE_RETRANSMISSION_RING;
-                let slot = &ring_for_nack_recv[idx];
-
-                let now = system_nanos();
-                let should_send = now.saturating_sub(slot.last_nack_ns.load(Ordering::Acquire))
-                    >= NACK_INTERVAL_NS;
-                if should_send {
-                    let nack = SequencedMessageNack {
-                        requested_sequence_number: expected,
-                    };
-                    let encoded: &[u8] = encoding_buf.encode(&nack);
-
-                    let nack_listen_addr = "239.255.0.1:9000".parse::<SocketAddr>().unwrap();
-                    let _ = nack_send_socket.send_to(&encoded, nack_listen_addr);
-
-                    slot.last_nack_ns.store(now, Ordering::Release);
+                // Drain the lock-free queue
+                while let Some(seq) = nack_ring_for_nack_sender.pop() {
+                    batch.push(seq);
+                    if batch.len() >= 1024 {
+                        break;
+                    }
                 }
 
-                thread::sleep(Duration::from_micros(5));
+                if !batch.is_empty() {
+                    // sort to detect contiguous ranges
+                    batch.sort_unstable();
+                    let mut start = batch[0];
+                    let mut prev = start;
+
+                    for &s in &batch[1..] {
+                        if s != prev + 1 {
+                            let nack = SequencedMessageRangeNack { start, end: prev };
+                            let encoded: &[u8] = encoding_buf.encode(&nack);
+                            let _ = nack_send_socket.send_to(&encoded, nack_listen_addr);
+                            start = s;
+                        }
+                        prev = s;
+                    }
+
+                    // final range
+                    let nack = SequencedMessageRangeNack { start, end: prev };
+                    let encoded: &[u8] = encoding_buf.encode(&nack);
+                    let _ = nack_send_socket.send_to(&encoded, nack_listen_addr);
+
+                    batch.clear();
+                }
+
+                thread::sleep(Duration::from_micros(25));
             }
         });
 
@@ -117,30 +134,30 @@ impl NackSequencedMulticastReceiver {
             last_seen_sequence_number: 0,
             last_seen_atomic,
             transport_ring: recv_side_ring,
+            nack_ring,
         }
     }
 
-    pub fn try_recv(&mut self) -> Option<&SequencedEngineMessage> {
+    pub fn try_recv(&mut self) -> Option<SequencedEngineMessage> {
         let expected_sequence_number = self.last_seen_sequence_number + 1;
         let index = expected_sequence_number as usize % MAX_MESSAGE_RETRANSMISSION_RING;
         let slot = &self.transport_ring[index];
 
         if let Some(msg) = slot.load(expected_sequence_number) {
-            // println!("Found!: index {} seq: {}", index, msg.sequence_number);
             self.last_seen_sequence_number = msg.sequence_number;
             // Update atomic
             self.last_seen_atomic
                 .store(self.last_seen_sequence_number, Ordering::Release);
 
-            // Remove sequence number from NACK map
-            slot.set_nack(0);
             return Some(msg);
         } else {
             // Register a NACK and handle in timer thread
+            // Only push to NACK ring if throttle allows
             let now = system_nanos();
             let last = slot.last_nack();
-            if last == 0 {
+            if last == 0 || now.saturating_sub(last) >= NACK_INTERVAL_NS {
                 slot.set_nack(now);
+                self.nack_ring.push(expected_sequence_number);
             }
             return None;
         }

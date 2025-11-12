@@ -15,13 +15,13 @@ pub fn initialize_engine_msg_in_thread(order_entry_tx: Sender<Order>) -> ! {
     );
     let msg_in_socket = multicast_receiver(*ENGINE_MSG_IN_PORT);
 
-    multicast_receiver_to_engine_msg_in(Box::new(msg_in_socket), &order_entry_tx);
+    multicast_receiver_to_engine_msg_in(msg_in_socket, &order_entry_tx);
 }
 
-fn multicast_receiver_to_engine_msg_in(udp_socket: Box<UdpSocket>, oe_tx: &Sender<Order>) -> ! {
+fn multicast_receiver_to_engine_msg_in(udp_socket: UdpSocket, oe_tx: &Sender<Order>) -> ! {
     let mut last_seen_seq = 0;
 
-    let mut multicast_receiver = NackSequencedMulticastReceiver::new(udp_socket);
+    let mut multicast_receiver = NackSequencedMulticastReceiver::new(udp_socket, 9000);
 
     let mut init_oe_seq = 1000;
 

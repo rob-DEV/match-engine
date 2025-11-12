@@ -40,7 +40,7 @@ impl MarketDataBook {
         }
     }
 
-    pub fn update_from_engine(&mut self, engine_message: &EngineMessage) {
+    pub fn update_from_engine(&mut self, engine_message: &EngineMessage) -> bool {
         match engine_message {
             EngineMessage::NewOrderAck(new_order_ack) => self.update_new(new_order_ack),
             EngineMessage::CancelOrderAck(cancel_order_ack) => {
@@ -52,6 +52,8 @@ impl MarketDataBook {
             },
             _ => {}
         }
+
+        return true;
     }
 
     pub fn emit_l1(&self) {

@@ -1,8 +1,7 @@
 use common::message::execution_report::{ExecType, ExecutionReport};
 use common::network::mutlicast::multicast_receiver;
+use common::transport::nack_sequenced_multicast_receiver::NackSequencedMulticastReceiver;
 use common::transport::sequenced_message::EngineMessage;
-use common::transport::ack_sequenced_multicast_receiver::AckSequencedMulticastReceiver;
-use common::transport::transport_constants::MSG_OUT_CHANNEL;
 use common::util::time::system_nanos;
 use dashmap::DashMap;
 use std::error::Error;
@@ -15,8 +14,7 @@ pub fn initialize_engine_msg_out_receiver(
 ) -> Result<(), Box<dyn Error>> {
     let udp_socket = multicast_receiver(engine_msg_out_port);
 
-    let mut multicast_receiver =
-        AckSequencedMulticastReceiver::new(Box::from(udp_socket), MSG_OUT_CHANNEL);
+    let mut multicast_receiver = NackSequencedMulticastReceiver::new(udp_socket, 9001);
 
     println!(
         "Initialized MSG_OUT -> Gateway multicast on port {}",
@@ -27,9 +25,7 @@ pub fn initialize_engine_msg_out_receiver(
         let session_data = session_data_tx.clone();
 
         if let Some(outbound_engine_message) = multicast_receiver.try_recv() {
-            let outbound_message_type = &outbound_engine_message.message;
-
-            match outbound_message_type {
+            match &outbound_engine_message.message {
                 EngineMessage::NewOrderAck(new_ack) => {
                     let client_id = new_ack.client_id;
 

@@ -26,6 +26,12 @@ pub struct SequencedMessageNack {
 }
 
 #[derive(Encode, Decode, Debug)]
+pub struct SequencedMessageRangeNack {
+    pub start: SequenceNumber,
+    pub end: SequenceNumber,
+}
+
+#[derive(Encode, Decode, Debug)]
 pub enum EngineMessage {
     // OE
     NewOrder(NewOrderRequest),

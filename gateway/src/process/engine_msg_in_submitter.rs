@@ -16,14 +16,13 @@ pub fn initialize_engine_msg_in_message_submitter(
         *ENGINE_MSG_IN_PORT,
     ));
 
-    let mut multicast_sender = NackSequencedMulticastSender::new(udp_socket, send_addr);
+    let mut multicast_sender = NackSequencedMulticastSender::new(udp_socket, send_addr, 9000);
 
     println!(
         "Initialized Gateway -> MSG_IN multicast on port {}",
         *ENGINE_MSG_IN_PORT
     );
 
-    let mut f = 0;
     loop {
         while let Ok(inbound_engine_message) = rx.try_recv() {
             let message_in = match inbound_engine_message {
@@ -31,14 +30,8 @@ pub fn initialize_engine_msg_in_message_submitter(
                 GatewayMessage::MarketOrder(_) => unimplemented!(),
                 GatewayMessage::CancelOrder(cancel) => EngineMessage::CancelOrder(cancel),
             };
-            f += 1;
 
             multicast_sender.send(message_in);
-
-            if f > 1_000_000 {
-                println!("ASS");
-                loop {}
-            }
         }
     }
 }
