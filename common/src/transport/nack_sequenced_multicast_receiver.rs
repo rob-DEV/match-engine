@@ -92,7 +92,6 @@ impl NackSequencedMulticastReceiver {
             let mut batch = Vec::<u32>::with_capacity(1024);
             let nack_listen_addr = SocketAddr::from(([239, 255, 0, 1], nack_port));
 
-            while let Some(seq) = nack_ring_for_nack_sender.pop() {}
             loop {
                 // Drain the lock-free queue
                 while let Some(seq) = nack_ring_for_nack_sender.pop() {
