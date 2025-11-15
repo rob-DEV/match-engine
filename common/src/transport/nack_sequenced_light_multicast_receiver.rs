@@ -8,22 +8,23 @@ use crate::transport::sequenced_message::{
 use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
 use crate::util::time::system_nanos;
 use bitcode::Buffer;
+use nix::poll::{poll, PollFd, PollFlags, PollTimeout};
 use std::io::ErrorKind;
 use std::net::{SocketAddr, UdpSocket};
+use std::os::fd::{AsRawFd, BorrowedFd};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 use std::thread;
-use std::time::Duration;
 
 const NACK_INTERVAL_NS: u64 = 50_000;
-pub struct NackSequencedMulticastReceiver {
-    last_seen_sequence_number: SequenceNumber, // keep for try_recv() convenience
-    last_seen_atomic: Arc<AtomicU32>,          // shared with the NACK thread
+pub struct NackSequencedLightMulticastReceiver {
+    last_seen_sequence_number: SequenceNumber,
+    last_seen_atomic: Arc<AtomicU32>,
     transport_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>>,
     nack_ring: Arc<RingBuffer>,
 }
 
-impl NackSequencedMulticastReceiver {
+impl NackSequencedLightMulticastReceiver {
     pub fn new(recv_socket: UdpSocket, nack_port: u16) -> Self {
         let recv_side_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>> = Arc::new(
             (0..MAX_MESSAGE_RETRANSMISSION_RING)
@@ -31,16 +32,14 @@ impl NackSequencedMulticastReceiver {
                 .collect(),
         );
 
-        let nack_ring = Arc::new(RingBuffer::new(128));
+        let nack_ring = Arc::new(RingBuffer::new(64));
         let nack_ring_for_nack_sender = nack_ring.clone();
 
         let last_seen_atomic = Arc::new(AtomicU32::new(0));
 
         // Single socket for NACK send and retrans receive (replies come back to the source port)
-        let nack_io_socket = multicast_sender();
-        let retrans_recv_socket = nack_io_socket.try_clone().unwrap();
-
-        let nack_send_socket = nack_io_socket;
+        let nack_send_socket = multicast_sender();
+        let retrans_recv_socket = nack_send_socket.try_clone().unwrap();
 
         let ring_for_main = recv_side_ring.clone();
         let ring_for_retrans = recv_side_ring.clone();
@@ -65,38 +64,54 @@ impl NackSequencedMulticastReceiver {
             }
         });
 
-        // Thread: retransmit receiver
+        // Thread: retransmit receiver & periodic nack sender
         thread::spawn(move || {
             let mut buf = [0u8; MAX_UDP_PACKET_SIZE];
 
-            loop {
-                match retrans_recv_socket.recv_from(&mut buf) {
-                    Ok((size, _src)) => {
-                        if let Ok(msg) = bitcode::decode::<SequencedEngineMessage>(&buf[..size]) {
-                            let seq = msg.sequence_number;
-                            let idx = seq as usize % MAX_MESSAGE_RETRANSMISSION_RING;
-                            let slot = &ring_for_retrans[idx];
-                            slot.store(seq, msg);
-                        }
-                        continue;
-                    }
-                    Err(e) if e.kind() == ErrorKind::WouldBlock => thread::yield_now(),
-                    Err(e) => eprintln!("RETRANS_RECV error: {:?}", e),
-                }
-            }
-        });
-
-        // Thread: periodic NACK sender — uses the shared last_seen_atomic and outstanding map.
-        thread::spawn(move || {
             let mut encoding_buf = Buffer::new();
-            let mut batch = Vec::<u32>::with_capacity(128);
+            let mut batch = Vec::<u32>::with_capacity(1024);
             let nack_listen_addr = SocketAddr::from(([239, 255, 0, 1], nack_port));
 
+            let mut fds = [
+                PollFd::new(
+                    unsafe { BorrowedFd::borrow_raw(retrans_recv_socket.as_raw_fd()) },
+                    PollFlags::POLLIN,
+                ),
+                PollFd::new(
+                    unsafe { BorrowedFd::borrow_raw(nack_send_socket.as_raw_fd()) },
+                    PollFlags::POLLOUT,
+                ),
+            ];
+
             loop {
-                // Drain the lock-free queue
+                let elapsed = system_nanos();
+                let _ = poll(&mut fds, PollTimeout::ZERO).unwrap();
+
+                // RETRANS RECV
+                if let Some(revents) = fds[0].revents() {
+                    if revents.contains(PollFlags::POLLIN) {
+                        match retrans_recv_socket.recv_from(&mut buf) {
+                            Ok((size, _src)) => {
+                                if let Ok(msg) =
+                                    bitcode::decode::<SequencedEngineMessage>(&buf[..size])
+                                {
+                                    let seq = msg.sequence_number;
+                                    let idx = seq as usize % MAX_MESSAGE_RETRANSMISSION_RING;
+                                    let slot = &ring_for_retrans[idx];
+                                    slot.store(seq, msg);
+                                }
+                                continue;
+                            }
+                            Err(e) if e.kind() == ErrorKind::WouldBlock => thread::yield_now(),
+                            Err(e) => eprintln!("RETRANS_RECV error: {:?}", e),
+                        }
+                    }
+                }
+
+                // NACK SEND
                 while let Some(seq) = nack_ring_for_nack_sender.pop() {
                     batch.push(seq);
-                    if batch.len() >= 64 {
+                    if batch.len() >= 64 || system_nanos() - elapsed > 500 {
                         break;
                     }
                 }
@@ -124,12 +139,10 @@ impl NackSequencedMulticastReceiver {
 
                     batch.clear();
                 }
-
-                thread::sleep(Duration::from_micros(25));
             }
         });
 
-        NackSequencedMulticastReceiver {
+        NackSequencedLightMulticastReceiver {
             last_seen_sequence_number: 0,
             last_seen_atomic,
             transport_ring: recv_side_ring,

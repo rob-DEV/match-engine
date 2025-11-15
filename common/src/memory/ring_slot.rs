@@ -1,12 +1,13 @@
 use std::cell::UnsafeCell;
 use std::mem::MaybeUninit;
-use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 
 #[repr(align(64))]
 pub struct TransportRingSlot<T> {
     pub(crate) seq: AtomicU32,
     pub(crate) msg: UnsafeCell<MaybeUninit<T>>,
     pub(crate) last_nack_ns: AtomicU64,
+    pub(crate) pending_nack: AtomicBool,
 }
 
 impl<T> TransportRingSlot<T> {
@@ -15,6 +16,7 @@ impl<T> TransportRingSlot<T> {
             seq: AtomicU32::new(0),
             msg: UnsafeCell::new(MaybeUninit::uninit()),
             last_nack_ns: AtomicU64::new(0),
+            pending_nack: AtomicBool::new(false),
         }
     }
 

@@ -29,6 +29,7 @@ pub struct MarketDataBook {
     bids_levels: BTreeMap<u32, PriceLevel>,
     asks_levels: BTreeMap<u32, PriceLevel>,
     order_metadata_map: HashMap<u32, OrderMetadata>,
+    orders: u32,
 }
 
 impl MarketDataBook {
@@ -37,6 +38,7 @@ impl MarketDataBook {
             bids_levels: BTreeMap::new(),
             asks_levels: BTreeMap::new(),
             order_metadata_map: HashMap::new(),
+            orders: 0,
         }
     }
 
@@ -83,6 +85,10 @@ impl MarketDataBook {
         }
     }
 
+    pub fn order_count(&self) -> u32 {
+        self.orders
+    }
+
     fn update_new(&mut self, new_order_ack: &NewOrderAck) {
         let book_side = if new_order_ack.side == BUY {
             &mut self.bids_levels
@@ -99,6 +105,8 @@ impl MarketDataBook {
             new_order_ack.order_id,
             OrderMetadata::new(new_order_ack.side, new_order_ack.px, new_order_ack.qty),
         );
+
+        self.orders += 1;
     }
 
     fn update_execution(&mut self, execution: &ExecutionReport) {
