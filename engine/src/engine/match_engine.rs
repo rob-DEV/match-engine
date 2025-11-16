@@ -1,5 +1,5 @@
-use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
+use crate::algorithm::pro_rata_match_strategy::ProRataMatchStrategy;
 use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
 use crate::domain::order::{LimitOrder, Order};
@@ -16,7 +16,7 @@ use std::sync::mpsc::{Sender, TryRecvError};
 pub struct MatchEngine {
     instrument: Instrument,
     book: LimitOrderBook,
-    match_strategy: FifoMatchStrategy,
+    match_strategy: ProRataMatchStrategy,
     cycle_executions_buffer: Vec<ExecutionReport>,
 }
 
@@ -31,7 +31,7 @@ impl MatchEngine {
         Self {
             instrument,
             book,
-            match_strategy: FifoMatchStrategy::new(),
+            match_strategy: ProRataMatchStrategy::new(),
             cycle_executions_buffer: Vec::with_capacity(100_000),
         }
     }

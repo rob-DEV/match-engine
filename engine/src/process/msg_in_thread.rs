@@ -2,12 +2,11 @@ use crate::domain::order::{LimitOrder, Order};
 use crate::ENGINE_MSG_IN_PORT;
 use common::message::cancel_order::CancelOrderRequest;
 use common::network::mutlicast::multicast_receiver;
-use common::transport::nack_sequenced_light_multicast_receiver::NackSequencedLightMulticastReceiver;
+use common::transport::nack_sequenced_multicast_receiver::NackSequencedMulticastReceiver;
 use common::transport::sequenced_message::EngineMessage;
 use common::util::time::system_nanos;
 use std::net::UdpSocket;
 use std::sync::mpsc::Sender;
-use common::transport::nack_sequenced_multicast_receiver::NackSequencedMulticastReceiver;
 
 pub fn initialize_engine_msg_in_thread(order_entry_tx: Sender<Order>) -> ! {
     println!(

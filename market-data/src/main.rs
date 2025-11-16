@@ -4,7 +4,6 @@ use crate::md_book::MarketDataBook;
 use common::network::mutlicast::multicast_receiver;
 use common::transport::nack_sequenced_multicast_receiver::NackSequencedMulticastReceiver;
 use lazy_static::lazy_static;
-use common::transport::nack_sequenced_light_multicast_receiver::NackSequencedLightMulticastReceiver;
 
 lazy_static! {
     pub static ref ENGINE_MSG_OUT_PORT: u16 = 3500;
@@ -31,10 +30,7 @@ fn main() {
             let updated = market_data_book.update_from_engine(outbound_engine_message);
 
             // market_data_book.emit_l1();
-            if updated && last_seen_seq % 100000 == 0 {
-                // market_data_book.emit_l2();
-                println!("{}", market_data_book.order_count())
-            }
+            market_data_book.emit_l2();
         }
     }
 }

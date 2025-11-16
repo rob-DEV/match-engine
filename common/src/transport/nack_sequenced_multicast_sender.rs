@@ -8,6 +8,7 @@ use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
 use crate::util::time::system_nanos;
 use std::io::ErrorKind;
 
+use crate::network::multicast_batched_socket::MulticastBatchedSocket;
 use bitcode::Buffer;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
@@ -19,6 +20,7 @@ pub struct NackSequencedMulticastSender {
     sequence_number: SequenceNumber,
     encode_buf: Buffer,
     resend_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>>,
+    multicast_batched_sender: MulticastBatchedSocket,
 }
 
 impl NackSequencedMulticastSender {
@@ -64,12 +66,14 @@ impl NackSequencedMulticastSender {
             }
         });
 
+        let batch_send_sock = send_socket.clone();
         Self {
             socket: send_socket,
             socket_addr,
             sequence_number: 1,
             encode_buf: Buffer::new(),
             resend_ring,
+            multicast_batched_sender: MulticastBatchedSocket::new(batch_send_sock, socket_addr),
         }
     }
 
@@ -90,6 +94,8 @@ impl NackSequencedMulticastSender {
         // Encode and send
         let enc = self.encode_buf.encode(&slot.load(seq).unwrap());
         let _ = self.socket.send_to(enc, self.socket_addr);
+
+        // self.multicast_batched_sender.send(Vec::from(enc));
 
         self.sequence_number = seq + 1;
     }

@@ -14,7 +14,7 @@ pub fn multicast_receiver(port: u16) -> UdpSocket {
     socket.set_reuse_port(true).unwrap();
     // socket.set_nonblocking(true).unwrap();
 
-    socket.set_recv_buffer_size(4 * 1024 * 1024).unwrap();
+    socket.set_recv_buffer_size(8 * 1024 * 1024).unwrap();
     set_socket_priority_busy_spin(&socket);
 
     let bind_addr = SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, port);
@@ -33,7 +33,7 @@ pub fn multicast_sender() -> UdpSocket {
     socket.set_reuse_port(true).unwrap();
     // socket.set_nonblocking(true).unwrap();
 
-    socket.set_recv_buffer_size(4 * 1024 * 1024).unwrap();
+    socket.set_recv_buffer_size(8 * 1024 * 1024).unwrap();
     set_socket_priority_busy_spin(&socket);
 
     socket
@@ -50,7 +50,7 @@ pub fn multicast_sender() -> UdpSocket {
 fn set_socket_priority_busy_spin(socket: &Socket) {
     let fd = socket.as_raw_fd();
 
-    let busy_poll: i32 = 5; // microseconds
+    let busy_poll: i32 = 50; // microseconds
     let ret = unsafe {
         setsockopt(
             fd,

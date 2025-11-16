@@ -1,13 +1,12 @@
 use common::message::execution_report::{ExecType, ExecutionReport};
 use common::network::mutlicast::multicast_receiver;
-use common::transport::nack_sequenced_light_multicast_receiver::NackSequencedLightMulticastReceiver;
+use common::transport::nack_sequenced_multicast_receiver::NackSequencedMulticastReceiver;
 use common::transport::sequenced_message::EngineMessage;
 use common::util::time::system_nanos;
 use dashmap::DashMap;
 use std::error::Error;
 use std::sync::mpsc::Sender;
 use std::sync::Arc;
-use common::transport::nack_sequenced_multicast_receiver::NackSequencedMulticastReceiver;
 
 pub fn initialize_engine_msg_out_receiver(
     engine_msg_out_port: u16,

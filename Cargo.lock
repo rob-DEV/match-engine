@@ -302,6 +302,7 @@ dependencies = [
  "config",
  "dashmap",
  "lazy_static",
+ "libc",
  "minstant",
  "nix",
  "serde",
