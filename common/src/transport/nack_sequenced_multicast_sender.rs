@@ -8,11 +8,12 @@ use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
 use crate::util::time::system_nanos;
 use std::io::ErrorKind;
 
-use crate::network::multicast_batched_socket::MulticastBatchedSocket;
 use bitcode::Buffer;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::thread;
+
+const MAX_FLUSH_GAP_NS: u64 = 5_000;
 
 pub struct NackSequencedMulticastSender {
     socket: Arc<UdpSocket>,
@@ -20,7 +21,9 @@ pub struct NackSequencedMulticastSender {
     sequence_number: SequenceNumber,
     encode_buf: Buffer,
     resend_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>>,
-    multicast_batched_sender: MulticastBatchedSocket,
+    batch: Vec<SequencedEngineMessage>,
+    batch_idx: usize,
+    last_flush_ns: u64,
 }
 
 impl NackSequencedMulticastSender {
@@ -73,7 +76,9 @@ impl NackSequencedMulticastSender {
             sequence_number: 1,
             encode_buf: Buffer::new(),
             resend_ring,
-            multicast_batched_sender: MulticastBatchedSocket::new(batch_send_sock, socket_addr),
+            batch: Vec::with_capacity(64),
+            batch_idx: 0,
+            last_flush_ns: 0,
         }
     }
 
@@ -86,16 +91,23 @@ impl NackSequencedMulticastSender {
             sent_time: system_nanos(),
         };
 
-        // Store message in ring
         let idx = (seq as usize) % MAX_MESSAGE_RETRANSMISSION_RING;
         let slot = &self.resend_ring[idx];
         slot.store(seq, msg);
 
         // Encode and send
-        let enc = self.encode_buf.encode(&slot.load(seq).unwrap());
-        let _ = self.socket.send_to(enc, self.socket_addr);
+        self.batch.push(slot.load(seq).unwrap());
+        self.batch_idx += 1;
 
-        // self.multicast_batched_sender.send(Vec::from(enc));
+        let now = system_nanos();
+        if self.batch_idx == 64 || now - self.last_flush_ns > MAX_FLUSH_GAP_NS {
+            let enc = self.encode_buf.encode(&self.batch);
+            let _ = self.socket.send_to(enc, self.socket_addr);
+
+            self.last_flush_ns = now;
+            self.batch_idx = 0;
+            self.batch.clear();
+        }
 
         self.sequence_number = seq + 1;
     }

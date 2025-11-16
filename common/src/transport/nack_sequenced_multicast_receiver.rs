@@ -51,13 +51,16 @@ impl NackSequencedMulticastReceiver {
             loop {
                 match recv_socket.recv_from(&mut buf) {
                     Ok((size, _src)) => {
-                        if let Ok(msg) = bitcode::decode::<SequencedEngineMessage>(&buf[..size]) {
-                            let idx =
-                                msg.sequence_number as usize % MAX_MESSAGE_RETRANSMISSION_RING;
-                            let slot = &ring_for_main[idx];
-                            slot.store(msg.sequence_number, msg);
+                        if let Ok(msg) =
+                            bitcode::decode::<Vec<SequencedEngineMessage>>(&buf[..size])
+                        {
+                            for ms in msg {
+                                let idx =
+                                    ms.sequence_number as usize % MAX_MESSAGE_RETRANSMISSION_RING;
+                                let slot = &ring_for_main[idx];
+                                slot.store(ms.sequence_number, ms);
+                            }
                         }
-                        continue;
                     }
                     Err(e) if e.kind() == ErrorKind::WouldBlock => thread::yield_now(),
                     Err(e) => eprintln!("MAIN_RECV error: {:?}", e),
