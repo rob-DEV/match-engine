@@ -62,7 +62,7 @@ pub fn build_fill_execution(
         exec_qty,
         exec_px,
         exec_type: ExecType::MatchEvent,
-        execution_time: system_nanos(),
+        exec_ns: system_nanos(),
     }
 }
 
@@ -82,7 +82,7 @@ pub fn build_self_match_prevention_execution(resting_order: &mut LimitOrder) -> 
             exec_px: resting_order.px,
             exec_qty: resting_order.qty,
             exec_type: ExecType::SelfMatchPrevented,
-            execution_time: system_nanos(),
+            exec_ns: system_nanos(),
         },
         Side::SELL => ExecutionReport {
             trade_id: 0,
@@ -98,7 +98,7 @@ pub fn build_self_match_prevention_execution(resting_order: &mut LimitOrder) -> 
             exec_qty: resting_order.qty,
             exec_type: ExecType::SelfMatchPrevented,
             exec_px: resting_order.px,
-            execution_time: system_nanos(),
+            exec_ns: system_nanos(),
         },
     }
 }

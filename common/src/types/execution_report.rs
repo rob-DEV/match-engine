@@ -20,7 +20,7 @@ pub struct ExecutionReport {
     pub exec_qty: u32,
     pub exec_type: ExecType,
 
-    pub execution_time: u64,
+    pub exec_ns: u64,
 }
 
 #[derive(Encode, Decode, PartialEq, Debug, Copy, Clone)]

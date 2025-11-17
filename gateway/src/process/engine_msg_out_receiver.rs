@@ -56,7 +56,7 @@ pub fn initialize_engine_msg_out_receiver(
                             exec_qty: execution.exec_qty,
                             exec_px: execution.exec_px,
                             exec_type: ExecType::MatchEvent,
-                            execution_time: system_nanos(),
+                            exec_ns: system_nanos(),
                         });
 
                         let bid_tx = session_data.get(&bid_client_id).unwrap();

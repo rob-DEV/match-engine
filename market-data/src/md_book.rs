@@ -1,9 +1,10 @@
+use common::memory::memory::uninitialized_arr;
+use common::transport::sequenced_message::EngineMessage;
 use common::types::execution_report::{ExecType, ExecutionReport};
 use common::types::new_order::NewOrderAck;
 use common::types::side::Side;
 use common::types::side::Side::BUY;
 use common::types::side::Side::SELL;
-use common::transport::sequenced_message::EngineMessage;
 use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug)]
@@ -25,11 +26,31 @@ impl OrderMetadata {
     }
 }
 
+struct TradeMetadata {
+    pub exec_px: u32,
+    pub exec_qty: u32,
+    pub exec_ns: u64,
+}
+
+impl TradeMetadata {
+    pub fn new(execution_report: &ExecutionReport) -> Self {
+        TradeMetadata {
+            exec_px: execution_report.exec_px,
+            exec_qty: execution_report.exec_qty,
+            exec_ns: execution_report.exec_ns,
+        }
+    }
+}
+
+const MAX_RECENT_TRADE_SIZE: usize = 20;
+
 pub struct MarketDataBook {
     bids_levels: BTreeMap<u32, PriceLevel>,
     asks_levels: BTreeMap<u32, PriceLevel>,
     order_metadata_map: HashMap<u32, OrderMetadata>,
     orders: u32,
+    recent_trades: [TradeMetadata; MAX_RECENT_TRADE_SIZE],
+    recent_trades_count: usize,
 }
 
 impl MarketDataBook {
@@ -39,6 +60,8 @@ impl MarketDataBook {
             asks_levels: BTreeMap::new(),
             order_metadata_map: HashMap::new(),
             orders: 0,
+            recent_trades: uninitialized_arr(),
+            recent_trades_count: 0,
         }
     }
 
@@ -49,7 +72,9 @@ impl MarketDataBook {
                 self.update_cancel(cancel_order_ack.order_id)
             }
             EngineMessage::TradeExecution(execution) => match execution.exec_type {
-                ExecType::MatchEvent => self.update_execution(&execution),
+                ExecType::MatchEvent => {
+                    self.update_execution(&execution, TradeMetadata::new(execution))
+                }
                 ExecType::SelfMatchPrevented => self.update_smp_execution(&execution),
             },
             _ => {}
@@ -85,6 +110,17 @@ impl MarketDataBook {
         }
     }
 
+    pub fn emit_recent_trades(&self) {
+        println!("Trades:");
+        for i in 0..self.recent_trades_count {
+            let exec = &self.recent_trades[i];
+            println!(
+                "px:{} @ qty:{} @ {} ",
+                exec.exec_px, exec.exec_qty, exec.exec_ns
+            );
+        }
+    }
+
     pub fn order_count(&self) -> u32 {
         self.orders
     }
@@ -109,7 +145,7 @@ impl MarketDataBook {
         self.orders += 1;
     }
 
-    fn update_execution(&mut self, execution: &ExecutionReport) {
+    fn update_execution(&mut self, execution: &ExecutionReport, metadata: TradeMetadata) {
         let executed_qty = execution.exec_qty;
 
         if let Some(bid_order_metadata) = self.order_metadata_map.get_mut(&execution.bid_order_id) {
@@ -143,6 +179,12 @@ impl MarketDataBook {
             if price_level.qty == 0 {
                 self.asks_levels.remove(&ask_px);
             }
+        }
+
+        self.recent_trades[self.recent_trades_count] = metadata;
+        self.recent_trades_count += 1;
+        if self.recent_trades_count == MAX_RECENT_TRADE_SIZE {
+            self.recent_trades_count = 0;
         }
     }
 
