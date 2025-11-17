@@ -1,7 +1,7 @@
 use crate::book::order_book::Price;
 use crate::domain::order::LimitOrder;
-use common::message::execution_report::{ExecType, ExecutionReport, FillType};
-use common::message::side::Side;
+use common::types::execution_report::{ExecType, ExecutionReport, FillType};
+use common::types::side::Side;
 use common::util::time::system_nanos;
 
 pub fn best_prices_cross(order: &LimitOrder, best_px: Price) -> bool {

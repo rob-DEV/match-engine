@@ -1,6 +1,6 @@
 use crate::domain::order::{LimitOrder, Order};
 use crate::ENGINE_MSG_IN_PORT;
-use common::message::cancel_order::CancelOrderRequest;
+use common::types::cancel_order::CancelOrderRequest;
 use common::network::mutlicast::multicast_receiver;
 use common::transport::nack_sequenced_multicast_receiver::NackSequencedMulticastReceiver;
 use common::transport::sequenced_message::EngineMessage;
@@ -29,7 +29,7 @@ fn multicast_receiver_to_engine_msg_in(udp_socket: UdpSocket, oe_tx: &Sender<Ord
         if let Some(inbound_engine_message) = multicast_receiver.try_recv() {
             if inbound_engine_message.sequence_number != last_seen_seq + 1 {
                 eprintln!(
-                    "Received out of order message actual: {} expected: {}",
+                    "Received out of order types actual: {} expected: {}",
                     inbound_engine_message.sequence_number, last_seen_seq
                 );
             }

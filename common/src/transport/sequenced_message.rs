@@ -1,9 +1,10 @@
-use crate::message::cancel_order::{CancelOrderRequest, CancelledOrderAck};
-use crate::message::engine::{EngineError, RejectionMessage};
-use crate::message::execution_report::ExecutionReport;
-use crate::message::new_order::{NewOrderAck, NewOrderRequest};
+use crate::types::cancel_order::{CancelOrderRequest, CancelledOrderAck};
+use crate::types::engine::{EngineError, RejectionMessage};
+use crate::types::execution_report::ExecutionReport;
+use crate::types::new_order::{NewOrderAck, NewOrderRequest};
 use bitcode::{Decode, Encode};
 
+pub const MAX_UDP_MSG_BATCH_SIZE: usize = 32;
 pub type Subscriber = u32;
 pub type SequenceNumber = u32;
 
@@ -42,8 +43,5 @@ pub enum EngineMessage {
     RejectionMessage(RejectionMessage),
 
     // SYS
-    EngineSubscriptionRequest(Subscriber),
-    EngineSubscriptionPing(Subscriber),
-    EngineSubscriptionEnd(Subscriber),
     EngineError(EngineError),
 }

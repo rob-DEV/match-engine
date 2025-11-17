@@ -1,7 +1,7 @@
 use crate::domain::order::Order;
 use crate::engine;
 use common::config::config::load_engine_config;
-use common::message::instrument::Instrument;
+use common::types::instrument::Instrument;
 use common::transport::sequenced_message::EngineMessage;
 use std::sync::mpsc::{Receiver, Sender};
 

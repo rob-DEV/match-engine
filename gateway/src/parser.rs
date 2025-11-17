@@ -1,7 +1,7 @@
 use crate::message::GatewayMessage;
-use common::message::cancel_order::CancelOrderRequest;
-use common::message::new_order::{NewOrderRequest, TimeInForce};
-use common::message::side::Side;
+use common::types::cancel_order::CancelOrderRequest;
+use common::types::new_order::{NewOrderRequest, TimeInForce};
+use common::types::side::Side;
 use common::util::time::system_nanos;
 use fefix::definitions::fix42::MsgType;
 use fefix::prelude::*;

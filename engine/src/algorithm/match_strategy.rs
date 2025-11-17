@@ -1,6 +1,6 @@
 use crate::book::order_book::LimitOrderBook;
 use crate::domain::order::LimitOrder;
-use common::message::execution_report::ExecutionReport;
+use common::types::execution_report::ExecutionReport;
 
 pub trait MatchStrategy {
     fn new() -> Self;

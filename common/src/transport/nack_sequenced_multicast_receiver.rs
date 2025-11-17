@@ -10,15 +10,15 @@ use crate::util::time::system_nanos;
 use bitcode::Buffer;
 use std::io::ErrorKind;
 use std::net::{SocketAddr, UdpSocket};
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
 const NACK_INTERVAL_NS: u64 = 50_000;
+
 pub struct NackSequencedMulticastReceiver {
-    last_seen_sequence_number: SequenceNumber, // keep for try_recv() convenience
-    last_seen_atomic: Arc<AtomicU32>,          // shared with the NACK thread
+    last_seen_sequence_number: SequenceNumber,
     transport_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>>,
     nack_ring: Arc<RingBuffer>,
 }
@@ -34,8 +34,6 @@ impl NackSequencedMulticastReceiver {
         let nack_ring = Arc::new(RingBuffer::new(128));
         let nack_ring_for_nack_sender = nack_ring.clone();
 
-        let last_seen_atomic = Arc::new(AtomicU32::new(0));
-
         // Single socket for NACK send and retrans receive (replies come back to the source port)
         let nack_io_socket = multicast_sender();
         let retrans_recv_socket = nack_io_socket.try_clone().unwrap();
@@ -45,20 +43,23 @@ impl NackSequencedMulticastReceiver {
         let ring_for_main = recv_side_ring.clone();
         let ring_for_retrans = recv_side_ring.clone();
 
+        let mut ave_latency_count = 0;
+        let mut latency: u64 = 0;
+
         // Thread: multicast feed
         thread::spawn(move || {
-            let mut buf = [0u8; MAX_UDP_PACKET_SIZE];
+            let mut rx_buf = [0u8; MAX_UDP_PACKET_SIZE];
             loop {
-                match recv_socket.recv_from(&mut buf) {
+                match recv_socket.recv_from(&mut rx_buf) {
                     Ok((size, _src)) => {
-                        if let Ok(msg) =
-                            bitcode::decode::<Vec<SequencedEngineMessage>>(&buf[..size])
+                        if let Ok(msgs) =
+                            bitcode::decode::<Vec<SequencedEngineMessage>>(&rx_buf[..size])
                         {
-                            for ms in msg {
+                            for msg in msgs {
                                 let idx =
-                                    ms.sequence_number as usize % MAX_MESSAGE_RETRANSMISSION_RING;
+                                    msg.sequence_number as usize % MAX_MESSAGE_RETRANSMISSION_RING;
                                 let slot = &ring_for_main[idx];
-                                slot.store(ms.sequence_number, ms);
+                                slot.store(msg.sequence_number, msg);
                             }
                         }
                     }
@@ -70,18 +71,18 @@ impl NackSequencedMulticastReceiver {
 
         // Thread: retransmit receiver
         thread::spawn(move || {
-            let mut buf = [0u8; MAX_UDP_PACKET_SIZE];
+            let mut rx_buf = [0u8; MAX_UDP_PACKET_SIZE];
 
             loop {
-                match retrans_recv_socket.recv_from(&mut buf) {
+                match retrans_recv_socket.recv_from(&mut rx_buf) {
                     Ok((size, _src)) => {
-                        if let Ok(msg) = bitcode::decode::<SequencedEngineMessage>(&buf[..size]) {
+                        if let Ok(msg) = bitcode::decode::<SequencedEngineMessage>(&rx_buf[..size])
+                        {
                             let seq = msg.sequence_number;
                             let idx = seq as usize % MAX_MESSAGE_RETRANSMISSION_RING;
                             let slot = &ring_for_retrans[idx];
                             slot.store(seq, msg);
                         }
-                        continue;
                     }
                     Err(e) if e.kind() == ErrorKind::WouldBlock => thread::yield_now(),
                     Err(e) => eprintln!("RETRANS_RECV error: {:?}", e),
@@ -114,6 +115,7 @@ impl NackSequencedMulticastReceiver {
                         if s != prev + 1 {
                             let nack = SequencedMessageRangeNack { start, end: prev };
                             let encoded: &[u8] = encoding_buf.encode(&nack);
+
                             let _ = nack_send_socket.send_to(&encoded, nack_listen_addr);
                             start = s;
                         }
@@ -123,18 +125,18 @@ impl NackSequencedMulticastReceiver {
                     // final range
                     let nack = SequencedMessageRangeNack { start, end: prev };
                     let encoded: &[u8] = encoding_buf.encode(&nack);
+
                     let _ = nack_send_socket.send_to(&encoded, nack_listen_addr);
 
                     batch.clear();
                 }
 
-                thread::sleep(Duration::from_micros(25));
+                thread::sleep(Duration::from_micros(10000));
             }
         });
 
         NackSequencedMulticastReceiver {
             last_seen_sequence_number: 0,
-            last_seen_atomic,
             transport_ring: recv_side_ring,
             nack_ring,
         }
@@ -147,10 +149,6 @@ impl NackSequencedMulticastReceiver {
 
         if let Some(msg) = slot.load(expected_sequence_number) {
             self.last_seen_sequence_number = msg.sequence_number;
-            // Update atomic
-            self.last_seen_atomic
-                .store(self.last_seen_sequence_number, Ordering::Release);
-
             slot.pending_nack.store(false, Ordering::Release);
             slot.last_nack_ns.store(0, Ordering::Relaxed);
 

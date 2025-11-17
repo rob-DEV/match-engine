@@ -1,8 +1,8 @@
 use crate::book::book::Book;
 use crate::book::book_side::BookSide;
-use common::message::cancel_order::CancelOrderRequest;
+use common::types::cancel_order::CancelOrderRequest;
 use crate::domain::order::LimitOrder;
-use common::message::side::Side::{BUY, SELL};
+use common::types::side::Side::{BUY, SELL};
 
 pub type Price = u32;
 pub struct LimitOrderBook {

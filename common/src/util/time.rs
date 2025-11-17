@@ -1,7 +1,9 @@
 use lazy_static::lazy_static;
+use minstant::Anchor;
+use nix::time::{clock_gettime, ClockId};
 use std::thread::sleep;
 use std::time::Duration;
-use minstant::Anchor;
+
 // #[inline(always)]
 // pub fn system_nanos() -> u64 {
 //     let ts = clock_gettime(ClockId::CLOCK_REALTIME).unwrap();

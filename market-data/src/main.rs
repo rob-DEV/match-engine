@@ -30,7 +30,10 @@ fn main() {
             let updated = market_data_book.update_from_engine(outbound_engine_message);
 
             // market_data_book.emit_l1();
-            market_data_book.emit_l2();
+            if updated && last_seen_seq % 100_000 == 0 {
+                market_data_book.emit_l2();
+                println!("{}", market_data_book.order_count())
+            }
         }
     }
 }

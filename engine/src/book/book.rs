@@ -1,4 +1,4 @@
-use common::message::cancel_order::CancelOrderRequest;
+use common::types::cancel_order::CancelOrderRequest;
 use crate::domain::order::LimitOrder;
 
 pub trait Book {

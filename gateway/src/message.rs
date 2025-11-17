@@ -1,6 +1,6 @@
 use bitcode::{Decode, Encode};
-use common::message::cancel_order::CancelOrderRequest;
-use common::message::new_order::NewOrderRequest;
+use common::types::cancel_order::CancelOrderRequest;
+use common::types::new_order::NewOrderRequest;
 
 #[derive(Encode, Decode, Debug)]
 pub enum GatewayMessage {

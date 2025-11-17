@@ -128,21 +128,21 @@ fn main() -> Result<(), Box<dyn Error>> {
                     sender
                         .clone()
                         .send(fix_message.to_string() + "\n")
-                        .expect("TODO: panic message");
+                        .expect("TODO: panic types");
                 }
                 Command::Sell(px, qty) => {
                     fix_message = build_nos(false, px, qty);
                     sender
                         .clone()
                         .send(fix_message.to_string() + "\n")
-                        .expect("TODO: panic message");
+                        .expect("TODO: panic types");
                 }
                 Command::Cancel(is_buy, order_id) => {
                     fix_message = build_cancel(is_buy, order_id);
                     sender
                         .clone()
                         .send(fix_message.to_string() + "\n")
-                        .expect("TODO: panic message");
+                        .expect("TODO: panic types");
                 }
                 Command::Perf(is_buy, batch_size) => {
                     SHOULD_LOG.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -154,7 +154,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         order_fix = build_nos(is_buy, px, qty);
                         sender
                             .send(order_fix.to_string() + "\n")
-                            .expect("TODO: panic message");
+                            .expect("TODO: panic types");
                     }
 
                     println!("Perf done!");

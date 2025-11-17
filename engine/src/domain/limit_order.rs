@@ -1,5 +1,5 @@
-use common::message::new_order::TimeInForce;
-use common::message::side::Side;
+use common::types::new_order::TimeInForce;
+use common::types::side::Side;
 use std::cmp::Ordering;
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]

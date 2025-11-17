@@ -1,4 +1,4 @@
-use common::message::execution_report::{ExecType, ExecutionReport};
+use common::types::execution_report::{ExecType, ExecutionReport};
 use common::network::mutlicast::multicast_receiver;
 use common::transport::nack_sequenced_multicast_receiver::NackSequencedMulticastReceiver;
 use common::transport::sequenced_message::EngineMessage;

@@ -7,18 +7,12 @@ use std::os::fd::AsRawFd;
 use std::{io, mem};
 
 pub fn multicast_receiver(port: u16) -> UdpSocket {
-    let group = Ipv4Addr::new(239, 255, 0, 1);
-
-    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
-    socket.set_reuse_address(true).unwrap();
-    socket.set_reuse_port(true).unwrap();
-    // socket.set_nonblocking(true).unwrap();
-
-    socket.set_recv_buffer_size(8 * 1024 * 1024).unwrap();
-    set_socket_priority_busy_spin(&socket);
+    let socket = base_multicast_socket();
 
     let bind_addr = SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, port);
     socket.bind(&bind_addr.into()).unwrap();
+
+    let group = Ipv4Addr::new(239, 255, 0, 1);
 
     socket
         .join_multicast_v4(&group, &MULTICAST_INTERFACE)
@@ -28,13 +22,7 @@ pub fn multicast_receiver(port: u16) -> UdpSocket {
 }
 
 pub fn multicast_sender() -> UdpSocket {
-    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
-    socket.set_reuse_address(true).unwrap();
-    socket.set_reuse_port(true).unwrap();
-    // socket.set_nonblocking(true).unwrap();
-
-    socket.set_recv_buffer_size(8 * 1024 * 1024).unwrap();
-    set_socket_priority_busy_spin(&socket);
+    let socket = base_multicast_socket();
 
     socket
         .bind(&SocketAddrV4::new(Ipv4Addr::UNSPECIFIED, 0).into())
@@ -45,6 +33,17 @@ pub fn multicast_sender() -> UdpSocket {
     socket.set_multicast_ttl_v4(1).unwrap();
 
     std::net::UdpSocket::from(socket)
+}
+
+fn base_multicast_socket() -> Socket {
+    let socket = Socket::new(Domain::IPV4, Type::DGRAM, Some(Protocol::UDP)).unwrap();
+    socket.set_reuse_address(true).unwrap();
+    socket.set_reuse_port(true).unwrap();
+    socket.set_send_buffer_size(16 * 1024 * 1024).unwrap();
+    socket.set_recv_buffer_size(16 * 1024 * 1024).unwrap();
+    set_socket_priority_busy_spin(&socket);
+
+    socket
 }
 
 fn set_socket_priority_busy_spin(socket: &Socket) {

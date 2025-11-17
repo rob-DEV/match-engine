@@ -3,6 +3,7 @@ use crate::network::mutlicast::multicast_receiver;
 use crate::network::network_constants::MAX_UDP_PACKET_SIZE;
 use crate::transport::sequenced_message::{
     EngineMessage, SequenceNumber, SequencedEngineMessage, SequencedMessageRangeNack,
+    MAX_UDP_MSG_BATCH_SIZE,
 };
 use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
 use crate::util::time::system_nanos;
@@ -13,7 +14,7 @@ use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::thread;
 
-const MAX_FLUSH_GAP_NS: u64 = 5_000;
+const MAX_FLUSH_GAP_NS: u64 = 10_000;
 
 pub struct NackSequencedMulticastSender {
     socket: Arc<UdpSocket>,
@@ -69,14 +70,13 @@ impl NackSequencedMulticastSender {
             }
         });
 
-        let batch_send_sock = send_socket.clone();
         Self {
             socket: send_socket,
             socket_addr,
             sequence_number: 1,
             encode_buf: Buffer::new(),
             resend_ring,
-            batch: Vec::with_capacity(64),
+            batch: Vec::with_capacity(MAX_UDP_MSG_BATCH_SIZE),
             batch_idx: 0,
             last_flush_ns: 0,
         }
@@ -100,13 +100,13 @@ impl NackSequencedMulticastSender {
         self.batch_idx += 1;
 
         let now = system_nanos();
-        if self.batch_idx == 64 || now - self.last_flush_ns > MAX_FLUSH_GAP_NS {
+        if self.batch_idx == MAX_UDP_MSG_BATCH_SIZE || now - self.last_flush_ns > MAX_FLUSH_GAP_NS {
             let enc = self.encode_buf.encode(&self.batch);
             let _ = self.socket.send_to(enc, self.socket_addr);
 
             self.last_flush_ns = now;
             self.batch_idx = 0;
-            self.batch.clear();
+            self.batch.clear()
         }
 
         self.sequence_number = seq + 1;

@@ -1,8 +1,8 @@
-use common::message::execution_report::{ExecType, ExecutionReport};
-use common::message::new_order::NewOrderAck;
-use common::message::side::Side;
-use common::message::side::Side::BUY;
-use common::message::side::Side::SELL;
+use common::types::execution_report::{ExecType, ExecutionReport};
+use common::types::new_order::NewOrderAck;
+use common::types::side::Side;
+use common::types::side::Side::BUY;
+use common::types::side::Side::SELL;
 use common::transport::sequenced_message::EngineMessage;
 use std::collections::{BTreeMap, HashMap};
 
@@ -116,7 +116,6 @@ impl MarketDataBook {
             let bid_px = bid_order_metadata.px;
             // cleanup order
             bid_order_metadata.qty -= executed_qty;
-            assert!(bid_order_metadata.qty >= 0);
 
             if bid_order_metadata.qty == 0 {
                 self.order_metadata_map.remove(&execution.bid_order_id);
@@ -134,8 +133,6 @@ impl MarketDataBook {
             let ask_px = ask_order_metadata.px;
             // cleanup order
             ask_order_metadata.qty -= executed_qty;
-            assert!(ask_order_metadata.qty >= 0);
-
             if ask_order_metadata.qty == 0 {
                 self.order_metadata_map.remove(&execution.ask_order_id);
             }

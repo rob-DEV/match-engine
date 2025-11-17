@@ -5,8 +5,8 @@ use crate::algorithm::algo_utils::{
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::book::order_book::LimitOrderBook;
 use crate::domain::order::LimitOrder;
-use common::message::execution_report::ExecutionReport;
-use common::message::side::Side;
+use common::types::execution_report::ExecutionReport;
+use common::types::side::Side;
 
 pub struct FifoMatchStrategy;
 
