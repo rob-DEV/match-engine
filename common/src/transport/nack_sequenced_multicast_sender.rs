@@ -48,7 +48,7 @@ impl NackSequencedMulticastSender {
             loop {
                 match nack_socket.recv_from(&mut rx_buf) {
                     Ok((size, remote)) => {
-                        let nack: SequencedMessageRangeNack = match bitcode::decode(&rx_buf[..size])
+                        let nack: SequencedMessageRangeNack = match encode_buf.decode(&rx_buf[..size])
                         {
                             Ok(n) => n,
                             Err(_) => continue,

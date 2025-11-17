@@ -11,5 +11,3 @@ lazy_static = "1.5.0"
 minstant = "0.1.7"
 nix = { version = "0.30.1", features = ["socket", "uio", "net", "poll", "time"] }
 libc = "0.2.177"
-rkyv = "0.8.12"
-bytecheck = "0.8.2"

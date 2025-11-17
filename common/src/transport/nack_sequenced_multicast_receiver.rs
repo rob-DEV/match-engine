@@ -49,11 +49,13 @@ impl NackSequencedMulticastReceiver {
         // Thread: multicast feed
         thread::spawn(move || {
             let mut rx_buf = [0u8; MAX_UDP_PACKET_SIZE];
+            let mut encode_buf = Buffer::new();
+
             loop {
                 match recv_socket.recv_from(&mut rx_buf) {
                     Ok((size, _src)) => {
                         if let Ok(msgs) =
-                            bitcode::decode::<Vec<SequencedEngineMessage>>(&rx_buf[..size])
+                            encode_buf.decode::<Vec<SequencedEngineMessage>>(&rx_buf[..size])
                         {
                             for msg in msgs {
                                 let idx =
@@ -72,11 +74,13 @@ impl NackSequencedMulticastReceiver {
         // Thread: retransmit receiver
         thread::spawn(move || {
             let mut rx_buf = [0u8; MAX_UDP_PACKET_SIZE];
+            let mut encode_buf = Buffer::new();
 
             loop {
                 match retrans_recv_socket.recv_from(&mut rx_buf) {
                     Ok((size, _src)) => {
-                        if let Ok(msg) = bitcode::decode::<SequencedEngineMessage>(&rx_buf[..size])
+                        if let Ok(msg) =
+                            encode_buf.decode::<SequencedEngineMessage>(&rx_buf[..size])
                         {
                             let seq = msg.sequence_number;
                             let idx = seq as usize % MAX_MESSAGE_RETRANSMISSION_RING;
@@ -131,7 +135,7 @@ impl NackSequencedMulticastReceiver {
                     batch.clear();
                 }
 
-                thread::sleep(Duration::from_micros(10000));
+                thread::yield_now()
             }
         });
 
