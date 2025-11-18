@@ -83,6 +83,8 @@ impl MarketDataBook {
         return true;
     }
 
+
+
     pub fn emit_l1(&self) {
         let best_bid = self.bids_levels.iter().rev().next();
         let best_ask = self.asks_levels.iter().next();

@@ -1,39 +1,38 @@
-mod md_book;
+mod process;
+mod market_data_book;
+mod market_event;
 
-use crate::md_book::MarketDataBook;
-use common::network::mutlicast::multicast_receiver;
-use common::transport::nack_sequenced_multicast_receiver::NackSequencedMulticastReceiver;
+use axum::{
+    routing::{get, post},
+    http::StatusCode,
+    Json, Router,
+};
 use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
+use crate::process::engine_out_msg_receiver::initialize_engine_msg_out_receiver;
 
 lazy_static! {
     pub static ref ENGINE_MSG_OUT_PORT: u16 = 3500;
 }
 
-fn main() {
-    let udp_socket = multicast_receiver(*ENGINE_MSG_OUT_PORT);
+#[tokio::main]
+async fn main() {
 
-    let mut multicast_receiver = NackSequencedMulticastReceiver::new(udp_socket, 9001);
+    // Init MSG_OUT -> MDD mc recv thread
+    initialize_engine_msg_out_receiver(*ENGINE_MSG_OUT_PORT)
+        .expect("failed to initialize engine msg_out -> mdd");
 
-    println!(
-        "Initialized MSG_OUT -> Market Data Reporter multicast on port {}",
-        *ENGINE_MSG_OUT_PORT
-    );
+    // Init MDD processing thread
 
-    let mut last_seen_seq = 0;
-    let mut market_data_book = MarketDataBook::new();
 
-    loop {
-        if let Some(outbound_engine_message) = multicast_receiver.try_recv() {
-            last_seen_seq += 1;
-            let outbound_engine_message = &outbound_engine_message.message;
+    let app = Router::new()
+        .route("/", get(root));
 
-            let updated = market_data_book.update_from_engine(outbound_engine_message);
+    println!("Market Data Distributor running on http://127.0.0.1:7000");
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:7000").await.unwrap();
+    axum::serve(listener, app).await.unwrap();
+}
 
-            // if updated && last_seen_seq % 100_000 == 0 {
-                market_data_book.emit_l2();
-                market_data_book.emit_recent_trades();
-                // println!("{}", market_data_book.order_count())
-            // }
-        }
-    }
+async fn root() -> &'static str {
+    "Market Data Distributor!"
 }

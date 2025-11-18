@@ -5,7 +5,7 @@ use std::error::Error;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::process::exit;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::Receiver;
 use std::thread;
 
@@ -25,12 +25,15 @@ fn reader(read_stream: TcpStream) {
     let mut line = String::new();
     loop {
         line.clear();
-        let bytes_read = buf_reader.read_line(&mut line).unwrap();
 
-        // if SHOULD_LOG.load(Ordering::Relaxed) {
-        // println!("{}", line);
-        // }
-
+        let mut bytes_read = 0;
+        if SHOULD_LOG.load(Ordering::Acquire) {
+            bytes_read = buf_reader.read_line(&mut line).unwrap();
+            println!("{}", line);
+        } else {
+            // still read so the buffer doesn't grow, but throw away content
+            buf_reader.read_line(&mut String::new()).unwrap();
+        }
         if bytes_read == 0 {
             println!("Client disconnected!");
             exit(0);
@@ -145,7 +148,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                         .expect("TODO: panic types");
                 }
                 Command::Perf(is_buy, batch_size) => {
-                    SHOULD_LOG.store(false, std::sync::atomic::Ordering::Relaxed);
+                    SHOULD_LOG.store(false, std::sync::atomic::Ordering::Release);
                     for _ in 0..batch_size {
                         let order_fix;
                         let px = (random::<u32>() % 100) + 1;
@@ -158,7 +161,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                     }
 
                     println!("Perf done!");
-                    SHOULD_LOG.store(true, std::sync::atomic::Ordering::Relaxed);
+                    SHOULD_LOG.store(true, std::sync::atomic::Ordering::Release);
                 }
                 Command::Quit => {
                     exit(0);
