@@ -1,36 +1,29 @@
+use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
-use crate::algorithm::pro_rata_match_strategy::ProRataMatchStrategy;
 use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
 use crate::domain::order::{LimitOrder, Order};
+use common::transport::sequenced_message::EngineMessage;
 use common::types::cancel_order::Reason::ClientRequested;
 use common::types::cancel_order::{CancelOrderStatus, CancelledOrderAck};
 use common::types::execution_report::ExecutionReport;
-use common::types::instrument::Instrument;
 use common::types::new_order::NewOrderAck;
-use common::transport::sequenced_message::EngineMessage;
 use common::util::time::system_nanos;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{Sender, TryRecvError};
-use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 
 pub struct MatchEngine {
-    instrument: Instrument,
     book: LimitOrderBook,
     match_strategy: FifoMatchStrategy,
     cycle_executions_buffer: Vec<ExecutionReport>,
 }
 
 impl MatchEngine {
-    pub fn new(instrument: Instrument) -> Self {
+    pub fn new() -> Self {
         let book = LimitOrderBook::new();
 
-        println!(
-            "--- Initializing engine instance for {} ({}) ---",
-            instrument.symbol, instrument.isin
-        );
+        println!("--- Initializing engine instance ---",);
         Self {
-            instrument,
             book,
             match_strategy: FifoMatchStrategy::new(),
             cycle_executions_buffer: Vec::with_capacity(100_000),

@@ -26,8 +26,8 @@ impl LimitOrder {
 impl PartialOrd for LimitOrder {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (&self.side, &other.side) {
-            (&Side::BUY, &Side::BUY) => self.partial_cmp_buy(other),
-            (&Side::SELL, &Side::SELL) => self.partial_cmp_sell(other),
+            (&Side::Buy, &Side::Buy) => self.partial_cmp_buy(other),
+            (&Side::Sell, &Side::Sell) => self.partial_cmp_sell(other),
             (_, _) => None,
         }
     }

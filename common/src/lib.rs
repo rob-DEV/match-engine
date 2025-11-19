@@ -1,6 +1,5 @@
-pub mod network;
-pub mod config;
-pub mod util;
 pub mod memory;
-pub mod types;
+pub mod network;
 pub mod transport;
+pub mod types;
+pub mod util;

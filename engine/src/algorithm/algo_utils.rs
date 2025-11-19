@@ -6,8 +6,8 @@ use common::util::time::system_nanos;
 
 pub fn best_prices_cross(order: &LimitOrder, best_px: Price) -> bool {
     let px_cross = match order.side {
-        Side::BUY => order.px >= best_px,
-        Side::SELL => order.px <= best_px,
+        Side::Buy => order.px >= best_px,
+        Side::Sell => order.px <= best_px,
     };
     px_cross
 }
@@ -26,11 +26,11 @@ pub fn build_fill_execution(
     let ask;
 
     match order.side {
-        Side::BUY => {
+        Side::Buy => {
             bid = order;
             ask = resting_order;
         }
-        Side::SELL => {
+        Side::Sell => {
             bid = resting_order;
             ask = order;
         }
@@ -68,7 +68,7 @@ pub fn build_fill_execution(
 
 pub fn build_self_match_prevention_execution(resting_order: &mut LimitOrder) -> ExecutionReport {
     match resting_order.side {
-        Side::BUY => ExecutionReport {
+        Side::Buy => ExecutionReport {
             trade_id: 0,
             trade_seq: 0,
             bid_client_id: resting_order.client_id,
@@ -84,7 +84,7 @@ pub fn build_self_match_prevention_execution(resting_order: &mut LimitOrder) -> 
             exec_type: ExecType::SelfMatchPrevented,
             exec_ns: system_nanos(),
         },
-        Side::SELL => ExecutionReport {
+        Side::Sell => ExecutionReport {
             trade_id: 0,
             trade_seq: 0,
             bid_client_id: 0,

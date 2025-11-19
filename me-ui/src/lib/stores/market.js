@@ -13,11 +13,7 @@ export const market = writable({
 let socket = new WebSocket("ws://localhost:7000/ws/marketdata");
 
 socket.onmessage = (event) => {
-
     const msg = JSON.parse(event.data);
-
-    // console.log(msg);
-
     market.set(msg);
 };
 

@@ -8,12 +8,15 @@ use crate::domain::order::LimitOrder;
 use common::types::execution_report::ExecutionReport;
 use common::types::side::Side;
 
+#[derive(Debug)]
 pub struct FifoMatchStrategy;
 
-impl MatchStrategy for FifoMatchStrategy {
-    fn new() -> Self {
+impl FifoMatchStrategy {
+    pub(crate) fn new() -> Self {
         FifoMatchStrategy {}
     }
+}
+impl MatchStrategy for FifoMatchStrategy {
 
     fn match_orders(
         &mut self,
@@ -22,8 +25,8 @@ impl MatchStrategy for FifoMatchStrategy {
         executions_buffer: &mut Vec<ExecutionReport>,
     ) -> usize {
         let (_book_side, opposite_book_side) = match order.side {
-            Side::BUY => (&mut order_book.bids, &mut order_book.asks),
-            Side::SELL => (&mut order_book.asks, &mut order_book.bids),
+            Side::Buy => (&mut order_book.bids, &mut order_book.asks),
+            Side::Sell => (&mut order_book.asks, &mut order_book.bids),
         };
 
         loop {

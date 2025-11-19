@@ -1,0 +1,6 @@
+{
+  "msg_in_port": 3000,
+  "msg_out_port": 3500,
+  "instrument": "BTC/USD",
+  "match_strategy": "FIFO"
+}

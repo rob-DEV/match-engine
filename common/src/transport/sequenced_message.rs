@@ -1,5 +1,5 @@
 use crate::types::cancel_order::{CancelOrderRequest, CancelledOrderAck};
-use crate::types::engine::{EngineError, RejectionMessage};
+use crate::types::engine::{EngineCommand, EngineError};
 use crate::types::execution_report::ExecutionReport;
 use crate::types::new_order::{NewOrderAck, NewOrderRequest};
 use bitcode::{Decode, Encode};
@@ -40,8 +40,8 @@ pub enum EngineMessage {
     CancelOrder(CancelOrderRequest),
     CancelOrderAck(CancelledOrderAck),
     TradeExecution(ExecutionReport),
-    RejectionMessage(RejectionMessage),
 
     // SYS
+    EngineCommand(EngineCommand),
     EngineError(EngineError),
 }

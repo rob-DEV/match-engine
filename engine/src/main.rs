@@ -1,14 +1,10 @@
-use crate::process::match_thread::initialize_match_thread;
-use crate::process::msg_in_thread::initialize_engine_msg_in_thread;
-use crate::process::msg_out_thread::initialize_engine_msg_out_thread;
-use common::transport::sequenced_message::EngineMessage;
-use common::util::time::wait_50_milli;
-use domain::order::Order;
+use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
+use crate::algorithm::match_strategy::MatchStrategy;
+use crate::engine::engine_config::EngineConfig;
+use crate::engine::match_server::MatchServer;
 use lazy_static::lazy_static;
+use std::env;
 use std::error::Error;
-use std::sync::mpsc;
-use std::sync::mpsc::{Receiver, Sender};
-use std::{env, thread};
 
 mod algorithm;
 mod book;
@@ -27,46 +23,11 @@ lazy_static! {
         .unwrap();
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() {
     println!("--- Initializing Match Engine ---");
 
-    let (engine_msg_out_tx, engine_msg_out_rx): (Sender<EngineMessage>, Receiver<EngineMessage>) =
-        mpsc::channel();
-    let (order_entry_tx, order_entry_rx): (Sender<Order>, Receiver<Order>) = mpsc::channel();
+    let engine_config = EngineConfig::load("/home/robert/dev/match-engine/config/engine_btc_usd.json");
 
-    let core_ids = core_affinity::get_core_ids()
-        .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    let pinned_match_core = core_ids[0];
-    let pinned_msg_in_core = core_ids[1];
-    let pinned_msg_out_core = core_ids[2];
-
-    // OE and Match Thread
-    let engine_thread = thread::spawn(move || {
-        core_affinity::set_for_current(pinned_match_core);
-        initialize_match_thread(engine_msg_out_tx, order_entry_rx);
-    });
-
-    wait_50_milli();
-
-    // MULTICAST -> ENGINE MSG_IN
-    let engine_msg_in_thread = thread::spawn(move || {
-        core_affinity::set_for_current(pinned_msg_in_core);
-        initialize_engine_msg_in_thread(order_entry_tx);
-    });
-
-    wait_50_milli();
-
-    // ENGINE MSG_OUT -> MULTICAST
-    let engine_msg_out_thread = thread::spawn(move || {
-        core_affinity::set_for_current(pinned_msg_out_core);
-        initialize_engine_msg_out_thread(engine_msg_out_rx)
-    });
-
-    engine_thread.join().unwrap();
-    engine_msg_out_thread.join().unwrap();
-    engine_msg_in_thread.join().unwrap();
-
-    Ok(())
+    let mut match_server = MatchServer::new(engine_config);
+    match_server.run();
 }

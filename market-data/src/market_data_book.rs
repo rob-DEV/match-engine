@@ -3,8 +3,8 @@ use common::transport::sequenced_message::EngineMessage;
 use common::types::execution_report::{ExecType, ExecutionReport};
 use common::types::new_order::NewOrderAck;
 use common::types::side::Side;
-use common::types::side::Side::BUY;
-use common::types::side::Side::SELL;
+use common::types::side::Side::Buy;
+use common::types::side::Side::Sell;
 use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug)]
@@ -53,8 +53,6 @@ pub struct MarketDataBook {
     // stats
     last_trade_px: u32,
     last_trades: [Trade; MAX_MARKET_EVENT_DEPTH],
-    bid_count: usize,
-    ask_count: usize,
     trade_count: usize,
 }
 
@@ -67,8 +65,6 @@ impl MarketDataBook {
             orders: 0,
             last_trade_px: 0,
             last_trades: [Trade::default(); MAX_MARKET_EVENT_DEPTH],
-            bid_count: 0,
-            ask_count: 0,
             trade_count: 0,
         }
     }
@@ -172,7 +168,7 @@ impl MarketDataBook {
     }
 
     fn update_new(&mut self, new_order_ack: &NewOrderAck) {
-        let book_side = if new_order_ack.side == BUY {
+        let book_side = if new_order_ack.side == Buy {
             &mut self.bids_levels
         } else {
             &mut self.asks_levels
@@ -253,8 +249,8 @@ impl MarketDataBook {
             let order_qty = order_metadata.qty;
 
             let side_price_level_treemap = match order_side {
-                BUY => &mut self.bids_levels,
-                SELL => &mut self.asks_levels,
+                Buy => &mut self.bids_levels,
+                Sell => &mut self.asks_levels,
             };
 
             let price_level = side_price_level_treemap.get_mut(&order_px).unwrap();

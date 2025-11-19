@@ -2,8 +2,7 @@ use crate::book::order_book::LimitOrderBook;
 use crate::domain::order::LimitOrder;
 use common::types::execution_report::ExecutionReport;
 
-pub trait MatchStrategy {
-    fn new() -> Self;
+pub trait MatchStrategy: std::fmt::Debug {
     fn match_orders(
         &mut self,
         order_book: &mut LimitOrderBook,

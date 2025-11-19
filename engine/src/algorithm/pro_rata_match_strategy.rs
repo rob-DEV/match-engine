@@ -1,20 +1,21 @@
-use crate::algorithm::algo_utils::{best_prices_cross, build_fill_execution, build_self_match_prevention_execution};
+use crate::algorithm::algo_utils::{best_prices_cross, build_fill_execution};
 use crate::algorithm::match_strategy::MatchStrategy;
-use crate::book::book::Book;
 use crate::book::order_book::LimitOrderBook;
 use crate::book::price_level::PriceLevel;
 use crate::domain::order::LimitOrder;
+use common::types::execution_report::ExecutionReport;
 use common::types::side::Side;
 use std::collections::HashMap;
-use common::types::execution_report::ExecutionReport;
 
+#[derive(Debug)]
 pub struct ProRataMatchStrategy;
 
-impl MatchStrategy for ProRataMatchStrategy {
-    fn new() -> Self {
+impl ProRataMatchStrategy {
+    pub fn new() -> Self {
         ProRataMatchStrategy {}
     }
-
+}
+impl MatchStrategy for ProRataMatchStrategy {
     fn match_orders(
         &mut self,
         order_book: &mut LimitOrderBook,
@@ -24,8 +25,8 @@ impl MatchStrategy for ProRataMatchStrategy {
         let mut num_executions: usize = 0;
 
         let (book_side, opposite_book_side) = match order.side {
-            Side::BUY => (&mut order_book.bids, &mut order_book.asks),
-            Side::SELL => (&mut order_book.asks, &mut order_book.bids),
+            Side::Buy => (&mut order_book.bids, &mut order_book.asks),
+            Side::Sell => (&mut order_book.asks, &mut order_book.bids),
         };
 
         loop {
@@ -77,7 +78,12 @@ impl MatchStrategy for ProRataMatchStrategy {
                     opposite_book_side.total_qty -= fill_qty;
 
                     // Record execution
-                    executions_buffer.push(build_fill_execution(order, resting_order, best_px, fill_qty));
+                    executions_buffer.push(build_fill_execution(
+                        order,
+                        resting_order,
+                        best_px,
+                        fill_qty,
+                    ));
 
                     remaining_qty -= fill_qty;
                     pro_rata_allocation_idx += 1;

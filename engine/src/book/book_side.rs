@@ -2,7 +2,7 @@ use crate::book::order_book::Price;
 use crate::book::price_level::PriceLevel;
 use crate::domain::order::LimitOrder;
 use common::types::side::Side;
-use common::types::side::Side::{BUY, SELL};
+use common::types::side::Side::{Buy, Sell};
 use std::collections::{BTreeMap, HashMap};
 
 pub struct BookSide {
@@ -48,8 +48,8 @@ impl BookSide {
 
     pub fn best_price(&self) -> Option<Price> {
         match self.side {
-            BUY => self.price_level_map.keys().next_back().copied(),
-            SELL => self.price_level_map.keys().next().copied(),
+            Buy => self.price_level_map.keys().next_back().copied(),
+            Sell => self.price_level_map.keys().next().copied(),
         }
     }
 
