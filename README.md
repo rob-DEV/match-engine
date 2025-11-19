@@ -7,11 +7,24 @@ Experimental trade matching engine written in Rust.
 ![Engine](https://github.com/rob-DEV/match-engine/blob/main/misc/scratch/dev/engine_components.png)
 
 ## Features
-
-- Match Engine Gateway
-- Gateway -> Engine Messaging System (Multicast)
-- FIFO & Pro-rata Order matching
+- Match Engine - FIFO & Pro rata order matching
+  - Limit order
+  - Cancel
+  - Ack
+  - Executions
+  - Self Match Prevention
+- Market Data Distributor - Consumes UDP engine data & provides websocket feeds to frontend clients
+    - Bid/Ask 10 depth book
+    - Last trade px
+    - Last 10 trades
+- Match Engine Gateway - TCP clients to engine multicast
+- Svelte Frontend - Web UI
 - Order Entry Test Client
+  - Bid/Ask orders and random perf orders
+
+## Performance
+- 600k orders/sec - i7 32GB RAM loopback UDP MTU 9000
+
 
 ## Usage
 
@@ -22,6 +35,7 @@ Start the Matching Engine & API
 ```
  cargo run --release --bin engine
  cargo run --release --bin gateway
+ cargo run --release --bin market-data
  cargo run --release --bin oe_client
 ```
 
