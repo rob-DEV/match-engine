@@ -56,8 +56,7 @@ PERF side n_orders
 QUIT
 ```
 
-The engine will ACK new orders & report executions (both sides get an execution & the oe_client can currently self
-match).
+The engine will ACK new orders & report executions (both sides get an execution).
 
 ```
 Enter input:
