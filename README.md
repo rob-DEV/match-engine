@@ -52,7 +52,7 @@ OE CLIENT
 BUY px qty
 SELL px qty
 CANCEL side order_id
-PERF n_orders
+PERF side n_orders
 QUIT
 ```
 
