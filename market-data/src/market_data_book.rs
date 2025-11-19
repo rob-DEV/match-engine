@@ -1,4 +1,4 @@
-use common::memory::memory::uninitialized_arr;
+use crate::market_event::{L2Level, MarketEvent, Trade, L1, L2};
 use common::transport::sequenced_message::EngineMessage;
 use common::types::execution_report::{ExecType, ExecutionReport};
 use common::types::new_order::NewOrderAck;
@@ -42,15 +42,20 @@ impl TradeMetadata {
     }
 }
 
-const MAX_RECENT_TRADE_SIZE: usize = 20;
+const MAX_MARKET_EVENT_DEPTH: usize = 10;
 
 pub struct MarketDataBook {
     bids_levels: BTreeMap<u32, PriceLevel>,
     asks_levels: BTreeMap<u32, PriceLevel>,
     order_metadata_map: HashMap<u32, OrderMetadata>,
     orders: u32,
-    recent_trades: [TradeMetadata; MAX_RECENT_TRADE_SIZE],
-    recent_trades_count: usize,
+
+    // stats
+    last_trade_px: u32,
+    last_trades: [Trade; MAX_MARKET_EVENT_DEPTH],
+    bid_count: usize,
+    ask_count: usize,
+    trade_count: usize,
 }
 
 impl MarketDataBook {
@@ -60,8 +65,11 @@ impl MarketDataBook {
             asks_levels: BTreeMap::new(),
             order_metadata_map: HashMap::new(),
             orders: 0,
-            recent_trades: uninitialized_arr(),
-            recent_trades_count: 0,
+            last_trade_px: 0,
+            last_trades: [Trade::default(); MAX_MARKET_EVENT_DEPTH],
+            bid_count: 0,
+            ask_count: 0,
+            trade_count: 0,
         }
     }
 
@@ -83,7 +91,46 @@ impl MarketDataBook {
         return true;
     }
 
+    pub fn generate_market_event(&self) -> MarketEvent {
+        let best_bid = self.bids_levels.keys().max().unwrap_or(&0);
+        let best_ask = self.asks_levels.keys().min().unwrap_or(&0);
 
+        let mut l2_snapshot = L2 {
+            bids: [L2Level::default(); 10],
+            asks: [L2Level::default(); 10],
+        };
+
+        for (idx, level) in self
+            .bids_levels
+            .iter()
+            .rev()
+            .take(MAX_MARKET_EVENT_DEPTH)
+            .enumerate()
+        {
+            l2_snapshot.bids[idx].px = level.1.px;
+            l2_snapshot.bids[idx].qty = level.1.qty;
+        }
+        for (idx, level) in self
+            .asks_levels
+            .iter()
+            .take(MAX_MARKET_EVENT_DEPTH)
+            .enumerate()
+        {
+            l2_snapshot.asks[idx].px = level.1.px;
+            l2_snapshot.asks[idx].qty = level.1.qty;
+        }
+
+        MarketEvent {
+            l1: L1 {
+                best_bid: *best_bid,
+                best_ask: *best_ask,
+                last_price: self.last_trade_px,
+            },
+            l2: l2_snapshot,
+            last_px: self.last_trade_px,
+            trades: self.last_trades,
+        }
+    }
 
     pub fn emit_l1(&self) {
         let best_bid = self.bids_levels.iter().rev().next();
@@ -114,12 +161,9 @@ impl MarketDataBook {
 
     pub fn emit_recent_trades(&self) {
         println!("Trades:");
-        for i in 0..self.recent_trades_count {
-            let exec = &self.recent_trades[i];
-            println!(
-                "px:{} @ qty:{} @ {} ",
-                exec.exec_px, exec.exec_qty, exec.exec_ns
-            );
+        for i in 0..self.trade_count {
+            let exec = &self.last_trades[i];
+            println!("px:{} @ qty:{} @ {} ", exec.px, exec.qty, exec.ts);
         }
     }
 
@@ -183,11 +227,13 @@ impl MarketDataBook {
             }
         }
 
-        self.recent_trades[self.recent_trades_count] = metadata;
-        self.recent_trades_count += 1;
-        if self.recent_trades_count == MAX_RECENT_TRADE_SIZE {
-            self.recent_trades_count = 0;
-        }
+        self.last_trade_px = metadata.exec_px;
+        self.last_trades[self.trade_count % MAX_MARKET_EVENT_DEPTH] = Trade {
+            px: metadata.exec_px,
+            qty: metadata.exec_qty,
+            ts: metadata.exec_ns,
+        };
+        self.trade_count += 1;
     }
 
     fn update_smp_execution(&mut self, execution: &ExecutionReport) {

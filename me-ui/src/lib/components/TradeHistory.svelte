@@ -12,12 +12,14 @@
     {#if trades.length === 0}
         <div class="text-gray-500 text-sm py-4 text-center">No trades yet</div>
     {:else}
-        {#each trades as trade (trade.id)}
-            <div class="grid grid-cols-3 gap-2 text-sm py-1 text-blue-400">
-                <div class="font-mono">${trade.price.toFixed(2)}</div>
-                <div>{trade.quantity}</div>
-                <div class="text-gray-400 text-xs">{trade.timestamp}</div>
-            </div>
+        {#each trades as trade}
+            {#if trade.px > 0}
+                <div class="grid grid-cols-3 gap-2 text-sm py-1 text-blue-400">
+                    <div class="font-mono">${trade.px}</div>
+                    <div>{trade.qty}</div>
+                    <div class="text-gray-400 text-xs">{trade.ts}</div>
+                </div>
+            {/if}
         {/each}
     {/if}
 </div>

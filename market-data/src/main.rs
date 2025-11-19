@@ -1,15 +1,19 @@
-mod process;
 mod market_data_book;
 mod market_event;
+mod process;
 
-use axum::{
-    routing::{get, post},
-    http::StatusCode,
-    Json, Router,
-};
+use crate::market_data_book::MarketDataBook;
+use crate::market_event::MarketEvent;
+use crate::process::engine_out_msg_receiver::initialize_engine_msg_out_receiver;
+use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
+use axum::extract::{State, WebSocketUpgrade};
+use axum::response::IntoResponse;
+use axum::{routing::get, Router};
+use common::transport::sequenced_message::SequencedEngineMessage;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
-use crate::process::engine_out_msg_receiver::initialize_engine_msg_out_receiver;
+use tokio::sync::broadcast;
+use tokio::time::{Duration, Instant};
 
 lazy_static! {
     pub static ref ENGINE_MSG_OUT_PORT: u16 = 3500;
@@ -17,16 +21,46 @@ lazy_static! {
 
 #[tokio::main]
 async fn main() {
+    // Init channels
+    let (tx_mdd_processor_to_ws, _) = broadcast::channel::<MarketEvent>(50000);
+    let (tx_multicast_to_mdd_processor, mut rx_udp_to_mdd_processor) =
+        tokio::sync::mpsc::channel::<SequencedEngineMessage>(1_000_000);
 
     // Init MSG_OUT -> MDD mc recv thread
-    initialize_engine_msg_out_receiver(*ENGINE_MSG_OUT_PORT)
-        .expect("failed to initialize engine msg_out -> mdd");
+    let core_ids = core_affinity::get_core_ids()
+        .unwrap()
+        .into_iter()
+        .collect::<Vec<_>>();
+    let pinned_msg_out_core = core_ids[2];
+
+    std::thread::spawn(move || {
+        core_affinity::set_for_current(pinned_msg_out_core);
+        initialize_engine_msg_out_receiver(9000, tx_multicast_to_mdd_processor).unwrap();
+    });
 
     // Init MDD processing thread
+    let mdd_tx_mdd_processor_to_ws = tx_mdd_processor_to_ws.clone();
+    tokio::spawn(async move {
+        let mut book = MarketDataBook::new();
 
+        let mut last_emit = Instant::now();
+        let min_interval = Duration::from_millis(50);
+
+        while let Some(msg) = rx_udp_to_mdd_processor.recv().await {
+            book.update_from_engine(&msg.message);
+
+            if last_emit.elapsed() >= min_interval {
+                let market_event = book.generate_market_event();
+                mdd_tx_mdd_processor_to_ws.send(market_event);
+                last_emit = Instant::now();
+            }
+        }
+    });
 
     let app = Router::new()
-        .route("/", get(root));
+        .route("/", get(root))
+        .route("/ws/marketdata", get(ws_handler))
+        .with_state(tx_mdd_processor_to_ws);
 
     println!("Market Data Distributor running on http://127.0.0.1:7000");
     let listener = tokio::net::TcpListener::bind("0.0.0.0:7000").await.unwrap();
@@ -35,4 +69,29 @@ async fn main() {
 
 async fn root() -> &'static str {
     "Market Data Distributor!"
+}
+
+async fn ws_handler(
+    ws: WebSocketUpgrade,
+    State(broadcast_tx): State<broadcast::Sender<MarketEvent>>,
+) -> impl IntoResponse {
+    ws.on_upgrade(move |socket| ws_session(socket, broadcast_tx))
+}
+
+async fn ws_session(mut socket: WebSocket, broadcast_tx: broadcast::Sender<MarketEvent>) {
+    println!("Client connected");
+    let mut rx = broadcast_tx.subscribe();
+
+    while let Ok(event) = rx.recv().await {
+        let json = serde_json::to_string(&event).unwrap();
+        if socket
+            .send(Message::Text(Utf8Bytes::from(json)))
+            .await
+            .is_err()
+        {
+            break;
+        }
+    }
+
+    println!("Client disconnected");
 }

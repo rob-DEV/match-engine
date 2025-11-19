@@ -5,7 +5,7 @@ use std::error::Error;
 use std::io::{BufRead, BufReader, Write};
 use std::net::TcpStream;
 use std::process::exit;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Receiver;
 use std::thread;
 
@@ -25,15 +25,12 @@ fn reader(read_stream: TcpStream) {
     let mut line = String::new();
     loop {
         line.clear();
+        let bytes_read = buf_reader.read_line(&mut line).unwrap();
 
-        let mut bytes_read = 0;
-        if SHOULD_LOG.load(Ordering::Acquire) {
-            bytes_read = buf_reader.read_line(&mut line).unwrap();
-            println!("{}", line);
-        } else {
-            // still read so the buffer doesn't grow, but throw away content
-            buf_reader.read_line(&mut String::new()).unwrap();
-        }
+        // if SHOULD_LOG.load(Ordering::Relaxed) {
+        // println!("{}", line);
+        // }
+
         if bytes_read == 0 {
             println!("Client disconnected!");
             exit(0);

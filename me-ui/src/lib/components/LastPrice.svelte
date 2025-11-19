@@ -9,7 +9,7 @@
     {/if}
     <div class="relative z-10">
         <div class="text-gray-200 text-sm mb-1">Last Trade Price</div>
-        <div class="text-5xl font-bold text-white">${lastPrice.toFixed(2)}</div>
+        <div class="text-5xl font-bold text-white">${lastPrice}</div>
         {#if showFlash}
             <div class="text-green-300 text-sm mt-2 animate-pulse">✓ Trade executed!</div>
         {/if}

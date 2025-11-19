@@ -1312,8 +1312,10 @@ version = "0.1.0"
 dependencies = [
  "axum",
  "common",
+ "core_affinity",
  "lazy_static",
  "serde",
+ "serde_json",
  "tokio",
 ]
 

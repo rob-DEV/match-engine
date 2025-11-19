@@ -10,17 +10,17 @@
     <div class="grid grid-cols-3 gap-2 text-xs text-gray-400 pb-2 border-b border-gray-700">
         <div>Price</div>
         <div>Quantity</div>
-        <div>Time</div>
     </div>
     {#if orders.length === 0}
         <div class="text-gray-500 text-sm py-4 text-center">No orders</div>
     {:else}
-        {#each orders as order (order.id)}
-            <div class="grid grid-cols-3 gap-2 text-sm py-1 {type==='buy'? 'text-green-400':'text-red-400'}">
-                <div class="font-mono">${order.price.toFixed(2)}</div>
-                <div>{order.quantity}</div>
-                <div class="text-gray-400 text-xs">{order.timestamp}</div>
-            </div>
+        {#each orders as order}
+            {#if order.px > 0}
+                <div class="grid grid-cols-3 gap-2 text-sm py-1 {type==='buy'? 'text-green-400':'text-red-400'}">
+                    <div class="font-mono">${order.px}</div>
+                    <div>{order.qty}</div>
+                </div>
+            {/if}
         {/each}
     {/if}
 </div>

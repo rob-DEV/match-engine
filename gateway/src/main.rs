@@ -11,8 +11,8 @@ use common::transport::sequenced_message::EngineMessage;
 use dashmap::DashMap;
 use lazy_static::lazy_static;
 use std::error::Error;
-use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{mpsc, Arc};
+use std::sync::mpsc::Sender;
+use std::sync::Arc;
 use std::{env, thread};
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
 
@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .into_iter()
         .collect::<Vec<_>>();
     let pinned_msg_in_core = core_ids[1];
-    let pinned_msg_out_core = core_ids[2];
+    let pinned_msg_out_core = core_ids[5];
 
     let (client_msg_tx, client_msg_rx): (
         UnboundedSender<GatewayMessage>,
