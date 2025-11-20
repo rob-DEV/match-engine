@@ -35,7 +35,7 @@ async fn main() {
     let pinned_msg_out_core = core_ids[2];
 
     let engine_msg_out_thread = std::thread::spawn(move || {
-        // core_affinity::set_for_current(pinned_msg_out_core);
+        core_affinity::set_for_current(pinned_msg_out_core);
         initialize_engine_msg_out_receiver(*ENGINE_MSG_OUT_PORT, tx_multicast_to_mdd_processor)
             .unwrap();
     });

@@ -6,16 +6,17 @@ use crate::transport::sequenced_message::{
     SequenceNumber, SequencedEngineMessage, SequencedMessageRangeNack,
 };
 use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
+use crate::transport::zero_alloc_transport::{from_bytes, nack_as_bytes};
 use crate::util::time::system_nanos;
-use bitcode::Buffer;
 use std::io::ErrorKind;
+use std::mem::MaybeUninit;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
-const NACK_INTERVAL_NS: u64 = 50_000;
+const NACK_INTERVAL_NS: u64 = 20_000;
 
 pub struct NackSequencedMulticastReceiver {
     last_seen_sequence_number: SequenceNumber,
@@ -43,21 +44,24 @@ impl NackSequencedMulticastReceiver {
         let ring_for_main = recv_side_ring.clone();
         let ring_for_retrans = recv_side_ring.clone();
 
-        let mut ave_latency_count = 0;
-        let mut latency: u64 = 0;
-
         // Thread: multicast feed
         thread::spawn(move || {
             let mut rx_buf = [0u8; MAX_UDP_PACKET_SIZE];
-            let mut encode_buf = Buffer::new();
 
             loop {
                 match recv_socket.recv_from(&mut rx_buf) {
                     Ok((size, _src)) => {
-                        if let Ok(msgs) =
-                            encode_buf.decode::<Vec<SequencedEngineMessage>>(&rx_buf[..size])
-                        {
-                            for msg in msgs {
+                        let raw_wire_msg = from_bytes(&rx_buf[..size]);
+                        for batch_idx in 0..raw_wire_msg.batch_size {
+                            let mut msg = MaybeUninit::<SequencedEngineMessage>::uninit();
+
+                            let src = &raw_wire_msg.batch[batch_idx as usize]
+                                as *const SequencedEngineMessage;
+                            let dst = msg.as_mut_ptr();
+
+                            unsafe {
+                                std::ptr::copy_nonoverlapping(src, dst, 1);
+                                let msg = msg.assume_init();
                                 let idx =
                                     msg.sequence_number as usize % MAX_MESSAGE_RETRANSMISSION_RING;
                                 let slot = &ring_for_main[idx];
@@ -74,18 +78,26 @@ impl NackSequencedMulticastReceiver {
         // Thread: retransmit receiver
         thread::spawn(move || {
             let mut rx_buf = [0u8; MAX_UDP_PACKET_SIZE];
-            let mut encode_buf = Buffer::new();
 
             loop {
                 match retrans_recv_socket.recv_from(&mut rx_buf) {
                     Ok((size, _src)) => {
-                        if let Ok(msg) =
-                            encode_buf.decode::<SequencedEngineMessage>(&rx_buf[..size])
-                        {
-                            let seq = msg.sequence_number;
-                            let idx = seq as usize % MAX_MESSAGE_RETRANSMISSION_RING;
-                            let slot = &ring_for_retrans[idx];
-                            slot.store(seq, msg);
+                        let raw_wire_msg = from_bytes(&rx_buf[..size]);
+                        for batch_idx in 0..raw_wire_msg.batch_size {
+                            let mut msg = MaybeUninit::<SequencedEngineMessage>::uninit();
+
+                            let src = &raw_wire_msg.batch[batch_idx as usize]
+                                as *const SequencedEngineMessage;
+                            let dst = msg.as_mut_ptr();
+
+                            unsafe {
+                                std::ptr::copy_nonoverlapping(src, dst, 1);
+                                let msg = msg.assume_init();
+                                let idx =
+                                    msg.sequence_number as usize % MAX_MESSAGE_RETRANSMISSION_RING;
+                                let slot = &ring_for_retrans[idx];
+                                slot.store(msg.sequence_number, msg);
+                            }
                         }
                     }
                     Err(e) if e.kind() == ErrorKind::WouldBlock => thread::yield_now(),
@@ -96,31 +108,35 @@ impl NackSequencedMulticastReceiver {
 
         // Thread: periodic NACK sender — uses the shared last_seen_atomic and outstanding map.
         thread::spawn(move || {
-            let mut encoding_buf = Buffer::new();
-            let mut batch = Vec::<u32>::with_capacity(128);
+            let mut nack_batch = Vec::<u32>::with_capacity(128);
             let nack_listen_addr = SocketAddr::from(([239, 255, 0, 1], nack_port));
 
             loop {
-                // Drain the lock-free queue
+                let mut nack_seen = [false; 128];
                 while let Some(seq) = nack_ring_for_nack_sender.pop() {
-                    batch.push(seq);
-                    if batch.len() >= 64 {
+                    let idx = (seq % 128) as usize;
+                    if nack_seen[idx] {
+                        continue;
+                    }
+                    nack_seen[idx] = true;
+                    nack_batch.push(seq);
+                    if nack_batch.len() >= 64 {
                         break;
                     }
                 }
 
-                if !batch.is_empty() {
+                if !nack_batch.is_empty() {
                     // sort to detect contiguous ranges
-                    batch.sort_unstable();
-                    let mut start = batch[0];
+                    // nack_batch.sort_unstable();
+                    let mut start = nack_batch[0];
                     let mut prev = start;
 
-                    for &s in &batch[1..] {
+                    for &s in &nack_batch[1..] {
                         if s != prev + 1 {
                             let nack = SequencedMessageRangeNack { start, end: prev };
-                            let encoded: &[u8] = encoding_buf.encode(&nack);
-
-                            let _ = nack_send_socket.send_to(&encoded, nack_listen_addr);
+                            nack_send_socket
+                                .send_to(nack_as_bytes(&nack), nack_listen_addr)
+                                .unwrap();
                             start = s;
                         }
                         prev = s;
@@ -128,14 +144,12 @@ impl NackSequencedMulticastReceiver {
 
                     // final range
                     let nack = SequencedMessageRangeNack { start, end: prev };
-                    let encoded: &[u8] = encoding_buf.encode(&nack);
+                    let _ = nack_send_socket.send_to(nack_as_bytes(&nack), nack_listen_addr);
 
-                    let _ = nack_send_socket.send_to(&encoded, nack_listen_addr);
-
-                    batch.clear();
+                    nack_batch.clear();
                 }
 
-                thread::yield_now()
+                std::thread::sleep(Duration::from_micros(20))
             }
         });
 
@@ -153,29 +167,21 @@ impl NackSequencedMulticastReceiver {
 
         if let Some(msg) = slot.load(expected_sequence_number) {
             self.last_seen_sequence_number = msg.sequence_number;
+
             slot.pending_nack.store(false, Ordering::Release);
             slot.last_nack_ns.store(0, Ordering::Relaxed);
 
             return Some(msg);
         } else {
-            // Register a NACK and handle in timer thread
-            // Only push to NACK ring if throttle allows
             let now = system_nanos();
+            let pending_nack = slot.pending_nack.swap(true, Ordering::AcqRel);
 
-            if slot.pending_nack.load(Ordering::Acquire) {
-                let last = slot.last_nack_ns.load(Ordering::Relaxed);
-
-                if now.wrapping_sub(last) >= NACK_INTERVAL_NS {
-                    slot.last_nack_ns.store(now, Ordering::Relaxed);
-                    self.nack_ring.push(expected_sequence_number);
-                }
-
-                return None;
+            if !pending_nack
+                || now.wrapping_sub(slot.last_nack_ns.load(Ordering::Relaxed)) >= NACK_INTERVAL_NS
+            {
+                slot.last_nack_ns.store(now, Ordering::Relaxed);
+                self.nack_ring.push(expected_sequence_number);
             }
-
-            slot.pending_nack.store(true, Ordering::Release);
-            slot.last_nack_ns.store(now, Ordering::Relaxed);
-            self.nack_ring.push(expected_sequence_number);
 
             return None;
         }

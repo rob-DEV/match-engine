@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         .into_iter()
         .collect::<Vec<_>>();
     let pinned_msg_in_core = core_ids[1];
-    let pinned_msg_out_core = core_ids[5];
+    let pinned_msg_out_core = core_ids[2];
 
     let (client_msg_tx, client_msg_rx): (
         UnboundedSender<GatewayMessage>,

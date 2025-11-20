@@ -1,4 +1,3 @@
-use crate::algorithm::fifo_match_strategy::FifoMatchStrategy;
 use crate::algorithm::match_strategy::MatchStrategy;
 use crate::engine::engine_config::EngineConfig;
 use crate::engine::match_server::MatchServer;
@@ -26,7 +25,8 @@ lazy_static! {
 fn main() {
     println!("--- Initializing Match Engine ---");
 
-    let engine_config = EngineConfig::load("/home/robert/dev/match-engine/config/engine_btc_usd.json");
+    let engine_config =
+        EngineConfig::load("/home/robert/dev/match-engine/config/engine_btc_usd.json");
 
     let mut match_server = MatchServer::new(engine_config);
     match_server.run();

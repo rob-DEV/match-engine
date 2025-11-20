@@ -1,7 +1,7 @@
-use bitcode::{Decode, Encode};
 use std::fmt::Debug;
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(PartialEq, Debug)]
+#[repr(C)]
 pub struct ExecutionReport {
     pub trade_id: u32,
     pub trade_seq: u32,
@@ -23,13 +23,15 @@ pub struct ExecutionReport {
     pub exec_ns: u64,
 }
 
-#[derive(Encode, Decode, PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Copy, Clone)]
+#[repr(C)]
 pub enum ExecType {
     MatchEvent,
     SelfMatchPrevented,
 }
 
-#[derive(Encode, Decode, PartialEq, Debug, Copy, Clone)]
+#[derive(PartialEq, Debug, Copy, Clone)]
+#[repr(C)]
 pub enum FillType {
     NoFill,
     PartialFill,

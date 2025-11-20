@@ -49,7 +49,7 @@ fn base_multicast_socket() -> Socket {
 fn set_socket_priority_busy_spin(socket: &Socket) {
     let fd = socket.as_raw_fd();
 
-    let busy_poll: i32 = 50; // microseconds
+    let busy_poll: i32 = 3; // microseconds
     let ret = unsafe {
         setsockopt(
             fd,

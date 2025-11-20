@@ -1,14 +1,15 @@
 use crate::types::side::Side;
-use bitcode::{Decode, Encode};
 
-#[derive(Encode, Decode, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct CancelOrderRequest {
     pub client_id: u32,
     pub order_side: Side,
     pub order_id: u32,
 }
 
-#[derive(Encode, Decode, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub struct CancelledOrderAck {
     pub client_id: u32,
     pub order_id: u32,
@@ -17,13 +18,15 @@ pub struct CancelledOrderAck {
     pub ack_time: u64,
 }
 
-#[derive(Encode, Decode, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub enum CancelOrderStatus {
     NotFound,
     Cancelled,
 }
 
-#[derive(Encode, Decode, Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
+#[repr(C)]
 pub enum Reason {
     ClientRequested,
     SelfMatchPrevention,

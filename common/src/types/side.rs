@@ -1,6 +1,6 @@
-use bitcode::{Decode, Encode};
 
-#[derive(Encode, Decode, PartialEq, Debug, Clone, Copy, Eq)]
+#[derive(PartialEq, Debug, Clone, Copy, Eq)]
+#[repr(C)]
 pub enum Side {
     Buy,
     Sell,

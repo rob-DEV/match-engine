@@ -9,7 +9,7 @@ use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
 use crate::util::time::system_nanos;
 use std::io::ErrorKind;
 
-use bitcode::Buffer;
+use crate::transport::zero_alloc_transport::{as_bytes, nack_from_bytes, RawWireMessage};
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::thread;
@@ -20,10 +20,8 @@ pub struct NackSequencedMulticastSender {
     socket: Arc<UdpSocket>,
     socket_addr: SocketAddr,
     sequence_number: SequenceNumber,
-    encode_buf: Buffer,
     resend_ring: Arc<Vec<TransportRingSlot<SequencedEngineMessage>>>,
-    batch: Vec<SequencedEngineMessage>,
-    batch_idx: usize,
+    raw_batch: RawWireMessage,
     last_flush_ns: u64,
 }
 
@@ -43,24 +41,22 @@ impl NackSequencedMulticastSender {
 
         thread::spawn(move || {
             let mut rx_buf = [0u8; MAX_UDP_PACKET_SIZE];
-            let mut encode_buf = Buffer::new();
 
             loop {
                 match nack_socket.recv_from(&mut rx_buf) {
                     Ok((size, remote)) => {
-                        let nack: SequencedMessageRangeNack = match encode_buf.decode(&rx_buf[..size])
-                        {
-                            Ok(n) => n,
-                            Err(_) => continue,
-                        };
+                        let nack: &SequencedMessageRangeNack = nack_from_bytes(&rx_buf[..size]);
 
                         for seq in nack.start..=nack.end {
                             let idx = (seq as usize) % MAX_MESSAGE_RETRANSMISSION_RING;
                             let slot = &nack_ring[idx];
 
                             if let Some(msg) = slot.load(seq) {
-                                let enc = encode_buf.encode(&msg);
-                                let _ = nack_socket.send_to(enc, remote);
+                                // TODO: batch up nacks as well
+                                let mut raw_wire_msg: RawWireMessage = RawWireMessage::default();
+                                raw_wire_msg.batch_size = 1;
+                                raw_wire_msg.batch[0] = msg;
+                                let _ = nack_socket.send_to(as_bytes(&raw_wire_msg), remote);
                             }
                         }
                     }
@@ -74,10 +70,8 @@ impl NackSequencedMulticastSender {
             socket: send_socket,
             socket_addr,
             sequence_number: 1,
-            encode_buf: Buffer::new(),
             resend_ring,
-            batch: Vec::with_capacity(MAX_UDP_MSG_BATCH_SIZE),
-            batch_idx: 0,
+            raw_batch: RawWireMessage::default(),
             last_flush_ns: 0,
         }
     }
@@ -95,18 +89,19 @@ impl NackSequencedMulticastSender {
         let slot = &self.resend_ring[idx];
         slot.store(seq, msg);
 
-        // Encode and send
-        self.batch.push(slot.load(seq).unwrap());
-        self.batch_idx += 1;
+        self.raw_batch.batch[self.raw_batch.batch_size as usize] = slot.load(seq).unwrap();
+        self.raw_batch.batch_size += 1;
 
         let now = system_nanos();
-        if self.batch_idx == MAX_UDP_MSG_BATCH_SIZE || now - self.last_flush_ns > MAX_FLUSH_GAP_NS {
-            let enc = self.encode_buf.encode(&self.batch);
-            let _ = self.socket.send_to(enc, self.socket_addr);
+        if self.raw_batch.batch_size == MAX_UDP_MSG_BATCH_SIZE as u16
+            || now - self.last_flush_ns > MAX_FLUSH_GAP_NS
+        {
+            self.socket
+                .send_to(as_bytes(&self.raw_batch), self.socket_addr)
+                .unwrap();
 
+            self.raw_batch.batch_size = 0;
             self.last_flush_ns = now;
-            self.batch_idx = 0;
-            self.batch.clear()
         }
 
         self.sequence_number = seq + 1;

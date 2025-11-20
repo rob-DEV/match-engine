@@ -1,12 +1,12 @@
-use bitcode::{Decode, Encode};
-
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(PartialEq, Debug)]
+#[repr(C)]
 pub enum EngineCommand {
     Start,
     Shutdown,
 }
 
-#[derive(Encode, Decode, PartialEq, Debug)]
+#[derive(PartialEq, Debug)]
+#[repr(C)]
 pub enum EngineError {
     GeneralError,
 }

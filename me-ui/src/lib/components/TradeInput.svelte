@@ -29,7 +29,8 @@
             <input type="number" step="0.01" placeholder="Price" bind:value={price} class="w-full bg-gray-700 text-white rounded-lg px-4 py-2"/>
             <input type="number" placeholder="Quantity" bind:value={quantity} class="w-full bg-gray-700 text-white rounded-lg px-4 py-2"/>
         </div>
-        <button on:click={addOrder} class="{orderType==='buy'? 'bg-green-600':'bg-red-600'} w-full py-3 rounded-lg text-white">
+        <!--        <button on:click={addOrder} class="{orderType==='buy'? 'bg-green-600':'bg-red-600'} w-full py-3 rounded-lg text-white">-->
+        <button class="{orderType==='buy'? 'bg-green-600':'bg-red-600'} w-full py-3 rounded-lg text-white">
             Place {orderType}</button>
     </div>
 </div>

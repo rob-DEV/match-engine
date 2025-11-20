@@ -1,7 +1,7 @@
 use crate::market_event::{L2Level, MarketEvent, Trade, L1, L2};
 use common::transport::sequenced_message::EngineMessage;
 use common::types::execution_report::{ExecType, ExecutionReport};
-use common::types::new_order::NewOrderAck;
+use common::types::order::NewOrderAck;
 use common::types::side::Side;
 use common::types::side::Side::Buy;
 use common::types::side::Side::Sell;

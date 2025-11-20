@@ -1,6 +1,6 @@
 use crate::message::GatewayMessage;
 use common::types::cancel_order::CancelOrderRequest;
-use common::types::new_order::{NewOrderRequest, TimeInForce};
+use common::types::order::{OrderRequest, TimeInForce};
 use common::types::side::Side;
 use common::util::time::system_nanos;
 use fefix::definitions::fix42::MsgType;
@@ -45,7 +45,7 @@ impl MessageConverter {
                     order_side = Side::Sell;
                 }
 
-                GatewayMessage::LimitOrder(NewOrderRequest {
+                GatewayMessage::LimitOrder(OrderRequest {
                     client_id,
                     order_side,
                     px: fix_msg_px,

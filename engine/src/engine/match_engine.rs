@@ -7,7 +7,7 @@ use common::transport::sequenced_message::EngineMessage;
 use common::types::cancel_order::Reason::ClientRequested;
 use common::types::cancel_order::{CancelOrderStatus, CancelledOrderAck};
 use common::types::execution_report::ExecutionReport;
-use common::types::new_order::NewOrderAck;
+use common::types::order::NewOrderAck;
 use common::util::time::system_nanos;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{Sender, TryRecvError};

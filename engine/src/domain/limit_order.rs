@@ -1,4 +1,4 @@
-use common::types::new_order::TimeInForce;
+use common::types::order::TimeInForce;
 use common::types::side::Side;
 use std::cmp::Ordering;
 

@@ -3,6 +3,7 @@
     import LastPrice from '$lib/components/LastPrice.svelte';
     import OrderBook from '$lib/components/OrderBook.svelte';
     import TradeHistory from '$lib/components/TradeHistory.svelte';
+    import TradeInput from "$lib/components/TradeInput.svelte";
 
     let showFlash = false;
 </script>
@@ -23,8 +24,8 @@
         <LastPrice lastPrice={$market.last_px} {showFlash}/>
 
 
-        <!-- Order Entry -->
-        <!--        <TradeInput on:addOrder={addOrder}/>-->
+        <!--        Order Entry-->
+        <TradeInput on:addOrder={addOrder}/>
 
         <!-- Order Books -->
         <div class="grid md:grid-cols-2 gap-6 mb-6">
