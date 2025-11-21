@@ -34,6 +34,7 @@ fn raw_config_match_strategy(match_strategy: &str) -> Box<dyn MatchStrategy> {
 }
 
 use serde::Deserialize;
+use serde_json::Value;
 use std::fs;
 
 #[derive(Deserialize)]
@@ -48,7 +49,15 @@ struct EngineConfigRaw {
 impl EngineConfigRaw {
     fn load_raw_engine_config(json_config_path: &str) -> EngineConfigRaw {
         let data = fs::read_to_string(json_config_path).expect("Error reading json file");
+        let root: Value = serde_json::from_str(&data).unwrap();
 
-        serde_json::from_str(&data).unwrap()
+        let engine = "engine";
+
+        let prefixed = root
+            .get("engine")
+            .ok_or_else(|| format!("Prefix '{}' not found in config", engine))
+            .unwrap();
+
+        serde_json::from_value(prefixed.clone()).unwrap()
     }
 }

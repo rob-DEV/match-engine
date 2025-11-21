@@ -19,3 +19,10 @@ export function isZeroArray<T extends NumericObject>(arr: T[]): boolean {
     }
     return true;
 }
+
+
+export function boundedRandomNumber(min: number, max: number): number {
+    const minCeil = Math.ceil(min);
+    const maxFloor = Math.floor(max);
+    return Math.floor(Math.random() * (maxFloor - minCeil) + minCeil);
+}

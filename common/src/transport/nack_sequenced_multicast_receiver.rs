@@ -8,6 +8,7 @@ use crate::transport::sequenced_message::{
 };
 use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
 use crate::transport::zero_alloc::RawWireMessage;
+use crate::util::limit_spin::limit_spin;
 use crate::util::time::system_nanos;
 use std::io::ErrorKind;
 use std::mem::MaybeUninit;
@@ -50,6 +51,7 @@ impl NackSequencedMulticastReceiver {
             let mut rx_buf = [0u8; MAX_UDP_PACKET_SIZE];
 
             loop {
+                limit_spin();
                 match recv_socket.recv_from(&mut rx_buf) {
                     Ok((size, _src)) => {
                         let raw_wire_msg = from_bytes::<RawWireMessage>(&rx_buf[..size]);
@@ -168,6 +170,7 @@ impl NackSequencedMulticastReceiver {
     }
 
     pub fn try_recv(&mut self) -> Option<SequencedEngineMessage> {
+        limit_spin();
         let expected_sequence_number = self.last_seen_sequence_number + 1;
         let index = expected_sequence_number as usize % MAX_MESSAGE_RETRANSMISSION_RING;
         let slot = &self.transport_ring[index];

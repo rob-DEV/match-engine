@@ -1,5 +1,6 @@
 #[derive(PartialEq, Debug)]
 #[repr(C)]
+#[derive(Clone)]
 pub enum EngineCommand {
     Start,
     Shutdown,
@@ -7,6 +8,7 @@ pub enum EngineCommand {
 
 #[derive(PartialEq, Debug)]
 #[repr(C)]
+#[derive(Clone)]
 pub enum EngineError {
     GeneralError,
 }

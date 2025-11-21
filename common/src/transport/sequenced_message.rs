@@ -21,7 +21,7 @@ pub struct SequencedMessageRangeNack {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum EngineMessage {
     // OE
     NewOrder(OrderRequest),

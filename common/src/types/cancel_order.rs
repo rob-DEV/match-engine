@@ -6,6 +6,7 @@ pub struct CancelOrderRequest {
     pub client_id: u32,
     pub order_side: Side,
     pub order_id: u32,
+    pub instrument: [u8; 16],
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -13,6 +14,7 @@ pub struct CancelOrderRequest {
 pub struct CancelledOrderAck {
     pub client_id: u32,
     pub order_id: u32,
+    pub instrument: [u8; 16],
     pub cancel_order_status: CancelOrderStatus,
     pub reason: Reason,
     pub ack_time: u64,

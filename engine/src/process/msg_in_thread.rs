@@ -56,6 +56,7 @@ pub fn msg_in_thread(
                             client_id: cancel.client_id,
                             order_side: cancel.order_side,
                             order_id: cancel.order_id,
+                            instrument: [0; 16],
                         }))
                         .unwrap(),
                     _ => {

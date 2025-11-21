@@ -1,5 +1,7 @@
-<script>
+<script lang="ts">
     import {market} from '$lib/stores/market.ts';
+    import {wsConnectClient} from '$lib/stores/event_stream.ts';
+
     import LastPrice from '$lib/components/LastPrice.svelte';
     import OrderBook from '$lib/components/OrderBook.svelte';
     import TradeHistory from '$lib/components/TradeHistory.svelte';
@@ -8,6 +10,10 @@
     import TraderTrades from "$lib/components/TraderTrades.svelte";
 
     let showFlash = false;
+
+    const clientId = 123; // dynamically from login/session
+    wsConnectClient(clientId);
+
 </script>
 
 <svelte:head>
@@ -26,12 +32,12 @@
         <LastPrice lastPrice={$market.last_px} {showFlash}/>
 
         <!-- Order Entry -->
-        <TradeInput on:addOrder={addOrder}/>
+        <TradeInput/>
 
         <!-- Trader Summary -->
         <div class="grid md:grid-cols-2 gap-6 mb-6">
-            <TraderOrders orders={[]}/>
-            <TraderTrades trades={[]}/>
+            <TraderOrders/>
+            <TraderTrades/>
         </div>
 
         <!-- Order Books -->

@@ -1,74 +1,54 @@
-mod client_state;
+mod app_state;
 mod message;
-mod parser;
 mod process;
 
-use crate::message::GatewayMessage;
-use crate::process::client_connection_handler::initialize_gateway_session_handler;
-use crate::process::engine_msg_in_submitter::initialize_engine_msg_in_message_submitter;
-use crate::process::engine_msg_out_receiver::initialize_engine_msg_out_receiver;
-use common::transport::sequenced_message::EngineMessage;
-use dashmap::DashMap;
-use lazy_static::lazy_static;
-use std::error::Error;
-use std::sync::mpsc::Sender;
-use std::sync::Arc;
-use std::{env, thread};
-use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender};
+use crate::app_state::AppState;
 
-lazy_static! {
-    pub static ref GATEWAY_PORT: u16 = env::var("GATEWAY_PORT")
-        .unwrap_or("3001".to_owned())
-        .parse::<u16>()
-        .unwrap();
-    pub static ref ENGINE_MSG_IN_PORT: u16 = env::var("ENGINE_PORT")
-        .unwrap_or("3000".to_owned())
-        .parse::<u16>()
-        .unwrap();
-    pub static ref ENGINE_MSG_OUT_PORT: u16 = env::var("ENGINE_PORT")
-        .unwrap_or("3500".to_owned())
-        .parse::<u16>()
-        .unwrap();
-}
+use crate::process::engine_msg_in_thread::msg_in_thread;
+use crate::process::engine_msg_out_thread::msg_out_thread;
+use crate::process::gateway_to_oe_api::gateway_to_oe_api_handler;
+use crate::process::oe_api_to_gateway::oe_api_to_gateway_handler;
+use common::transport::sequenced_message::EngineMessage;
+use core_affinity::CoreId;
+use std::error::Error;
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio::sync::{broadcast, mpsc};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
     println!("--- Initializing Gateway ---");
 
-    let core_ids = core_affinity::get_core_ids()
-        .unwrap()
-        .into_iter()
-        .collect::<Vec<_>>();
-    let pinned_msg_in_core = core_ids[1];
-    let pinned_msg_out_core = core_ids[2];
+    let listener = TcpListener::bind("0.0.0.0:3001").await?;
+    println!("Gateway listening on 3001");
 
-    let (client_msg_tx, client_msg_rx): (
-        UnboundedSender<GatewayMessage>,
-        UnboundedReceiver<GatewayMessage>,
-    ) = tokio::sync::mpsc::unbounded_channel();
+    let (tx_gw_queue, rx_gw_queue) = mpsc::channel::<EngineMessage>(1024);
+    let (tx_engine_queue, _) = broadcast::channel::<EngineMessage>(1024);
 
-    let client_msg_in_to_engine_map = Arc::new(DashMap::<u32, Sender<EngineMessage>>::new());
+    let state = Arc::new(AppState::new(tx_gw_queue));
 
-    let engine_msg_in_thread = thread::spawn(move || {
-        core_affinity::set_for_current(pinned_msg_in_core);
-        initialize_engine_msg_in_message_submitter(client_msg_rx)
-            .expect("failed to initialize engine MSG_IN thread");
-    });
+    msg_in_thread(3000, CoreId { id: 0 }, rx_gw_queue);
+    msg_out_thread(3500, CoreId { id: 0 }, tx_engine_queue.clone());
 
-    let engine_msg_out_map = Arc::clone(&client_msg_in_to_engine_map);
+    loop {
+        let (socket, addr) = listener.accept().await?;
+        let state = state.clone();
 
-    let engine_msg_out_thread = thread::spawn(move || {
-        core_affinity::set_for_current(pinned_msg_out_core);
-        initialize_engine_msg_out_receiver(*ENGINE_MSG_OUT_PORT, engine_msg_out_map)
-            .expect("failed to initialize engine MSG_OUT thread");
-    });
+        let (rx_oe_api, tx_oe_api) = socket.into_split();
 
-    let thread_session_msg_tx_map = client_msg_in_to_engine_map.clone();
-    initialize_gateway_session_handler(client_msg_tx, thread_session_msg_tx_map)
-        .await
-        .expect("failed to initialize market-gateway session handler");
+        tokio::spawn(async move {
+            if let Err(e) = oe_api_to_gateway_handler(rx_oe_api, state).await {
+                eprintln!("Connection {} error: {}", addr, e);
+            }
+        });
 
-    engine_msg_out_thread.join().unwrap();
-    engine_msg_in_thread.join().unwrap();
-    Ok(())
+        let tx_engine_queue_task = tx_engine_queue.clone();
+        tokio::spawn(async move {
+            if let Err(e) =
+                gateway_to_oe_api_handler(tx_oe_api, tx_engine_queue_task.subscribe()).await
+            {
+                eprintln!("Connection {} error: {}", addr, e);
+            }
+        });
+    }
 }

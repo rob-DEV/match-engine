@@ -9,11 +9,12 @@ use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
 use crate::util::time::system_nanos;
 use std::io::ErrorKind;
 
+use crate::serialize::serialize::{as_bytes, from_bytes};
 use crate::transport::zero_alloc::RawWireMessage;
+use crate::util::limit_spin::limit_spin;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::thread;
-use crate::serialize::serialize::{as_bytes, from_bytes};
 
 const MAX_FLUSH_GAP_NS: u64 = 10_000;
 
@@ -79,6 +80,7 @@ impl NackSequencedMulticastSender {
     }
 
     pub fn send(&mut self, engine_message: EngineMessage) {
+        limit_spin();
         let seq = self.sequence_number;
 
         let msg = SequencedEngineMessage {

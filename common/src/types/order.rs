@@ -22,10 +22,22 @@ pub struct NewOrderAck {
     pub qty: u32,
     pub ack_time: u64,
 }
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TimeInForce {
     GTC,
     IOC,
     FOK,
+}
+
+impl TimeInForce {
+    pub fn str_to_type(time_in_force: &str) -> TimeInForce {
+        match time_in_force {
+            "GTC" => TimeInForce::GTC,
+            "IOC" => TimeInForce::IOC,
+            "FOK" => TimeInForce::FOK,
+            _ => panic!("Unknown time_in_force: {}", time_in_force),
+        }
+    }
 }

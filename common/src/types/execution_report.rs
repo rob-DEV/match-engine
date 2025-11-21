@@ -2,6 +2,7 @@ use std::fmt::Debug;
 
 #[derive(PartialEq, Debug)]
 #[repr(C)]
+#[derive(Clone)]
 pub struct ExecutionReport {
     pub trade_id: u32,
     pub trade_seq: u32,
@@ -15,6 +16,8 @@ pub struct ExecutionReport {
     pub ask_order_id: u32,
     pub ask_order_px: u32,
     pub ask_fill_type: FillType,
+
+    pub instrument: [u8; 16],
 
     pub exec_px: u32,
     pub exec_qty: u32,

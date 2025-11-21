@@ -90,6 +90,7 @@ impl MatchEngine {
                         let out = EngineMessage::CancelOrderAck(CancelledOrderAck {
                             client_id: cancel_order.client_id,
                             order_id: cancel_order.order_id,
+                            instrument: [0; 16],
                             cancel_order_status,
                             reason: ClientRequested,
                             ack_time: system_nanos(),

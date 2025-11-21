@@ -1,7 +1,11 @@
-<script>
-    import {isZeroArray} from "$lib/utils/utils.ts";
+<script lang="ts">
+    import {wsMessages} from '$lib/stores/event_stream.ts';
+    import {derived} from 'svelte/store';
 
-    export let orders = [];
+    // Filter only order/trade messages for this component
+    export const orders = derived(wsMessages, ($wsMessages) =>
+        $wsMessages.filter((m) => m.type === 'OrderAck')
+    );
 </script>
 
 <div class="bg-gray-800 rounded-lg p-4">
@@ -13,10 +17,10 @@
         <div>Quantity</div>
         <div>Status</div>
     </div>
-    {#if isZeroArray(orders)}
+    {#if $orders.length === 0}
         <div class="text-gray-500 text-sm py-4 text-center">No orders</div>
     {:else}
-        {#each orders as order}
+        {#each $orders as order}
             {#if order.px > 0}
                 <div class="grid grid-cols-3 gap-2 text-sm py-1 text-blue-400">
                     <div class="font-mono">${order.px}</div>

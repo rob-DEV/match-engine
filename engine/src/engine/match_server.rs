@@ -21,7 +21,7 @@ pub struct MatchServer {
 
 impl MatchServer {
     pub fn new(engine_config: EngineConfig) -> MatchServer {
-        println!("Engine config: {:?}", engine_config);
+        println!("Engine config:\n{:?}", engine_config);
 
         let (engine_msg_out_tx, engine_msg_out_rx): (
             Sender<EngineMessage>,
