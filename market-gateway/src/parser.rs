@@ -45,8 +45,14 @@ impl MessageConverter {
                     order_side = Side::Sell;
                 }
 
+                let sym = b"BTC-USD";
+
+                let mut instrument = [0u8; 16];
+                instrument[..sym.len()].copy_from_slice(sym);
+
                 GatewayMessage::LimitOrder(OrderRequest {
                     client_id,
+                    instrument,
                     order_side,
                     px: fix_msg_px,
                     qty: fix_msg_qty,

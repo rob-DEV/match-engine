@@ -1,9 +1,11 @@
 <script>
-    import {market} from '$lib/stores/market';
+    import {market} from '$lib/stores/market.ts';
     import LastPrice from '$lib/components/LastPrice.svelte';
     import OrderBook from '$lib/components/OrderBook.svelte';
     import TradeHistory from '$lib/components/TradeHistory.svelte';
     import TradeInput from "$lib/components/TradeInput.svelte";
+    import TraderOrders from "$lib/components/TraderOrders.svelte";
+    import TraderTrades from "$lib/components/TraderTrades.svelte";
 
     let showFlash = false;
 </script>
@@ -23,9 +25,14 @@
         <!-- Last Price Display -->
         <LastPrice lastPrice={$market.last_px} {showFlash}/>
 
-
-        <!--        Order Entry-->
+        <!-- Order Entry -->
         <TradeInput on:addOrder={addOrder}/>
+
+        <!-- Trader Summary -->
+        <div class="grid md:grid-cols-2 gap-6 mb-6">
+            <TraderOrders orders={[]}/>
+            <TraderTrades trades={[]}/>
+        </div>
 
         <!-- Order Books -->
         <div class="grid md:grid-cols-2 gap-6 mb-6">

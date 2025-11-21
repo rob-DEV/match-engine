@@ -66,7 +66,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let thread_session_msg_tx_map = client_msg_in_to_engine_map.clone();
     initialize_gateway_session_handler(client_msg_tx, thread_session_msg_tx_map)
         .await
-        .expect("failed to initialize gateway session handler");
+        .expect("failed to initialize market-gateway session handler");
 
     engine_msg_out_thread.join().unwrap();
     engine_msg_in_thread.join().unwrap();

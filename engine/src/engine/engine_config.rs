@@ -8,7 +8,7 @@ pub struct EngineConfig {
     pub msg_out_port: u16,
 
     pub instrument: String,
-    pub instrument_id: u16,
+    pub instrument_id: u32,
     pub match_strategy: Box<dyn MatchStrategy>,
 }
 
@@ -41,7 +41,7 @@ struct EngineConfigRaw {
     pub msg_in_port: u16,
     pub msg_out_port: u16,
     pub instrument: String,
-    pub instrument_id: u16,
+    pub instrument_id: u32,
     pub match_strategy: String,
 }
 

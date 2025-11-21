@@ -40,7 +40,7 @@ fn reader(read_stream: TcpStream) {
 
 fn client_connection(sequenced_message_store: Receiver<String>) {
     let mut tcp_stream = TcpStream::connect("127.0.0.1:3001")
-        .map_err(|e| "Failed to connect to the gateway server")
+        .map_err(|e| "Failed to connect to the market-gateway server")
         .unwrap();
 
     let read_stream = tcp_stream.try_clone().unwrap();

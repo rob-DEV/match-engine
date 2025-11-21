@@ -4,6 +4,7 @@ use crate::types::side::Side;
 #[derive(Debug, Clone, Copy)]
 pub struct OrderRequest {
     pub client_id: u32,
+    pub instrument: [u8; 16],
     pub order_side: Side,
     pub px: u32,
     pub qty: u32,

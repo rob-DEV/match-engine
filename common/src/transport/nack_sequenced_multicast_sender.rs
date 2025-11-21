@@ -9,10 +9,11 @@ use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
 use crate::util::time::system_nanos;
 use std::io::ErrorKind;
 
-use crate::transport::zero_alloc_transport::{as_bytes, nack_from_bytes, RawWireMessage};
+use crate::transport::zero_alloc::RawWireMessage;
 use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::thread;
+use crate::serialize::serialize::{as_bytes, from_bytes};
 
 const MAX_FLUSH_GAP_NS: u64 = 10_000;
 
@@ -45,7 +46,8 @@ impl NackSequencedMulticastSender {
             loop {
                 match nack_socket.recv_from(&mut rx_buf) {
                     Ok((size, remote)) => {
-                        let nack: &SequencedMessageRangeNack = nack_from_bytes(&rx_buf[..size]);
+                        let nack: &SequencedMessageRangeNack =
+                            from_bytes::<SequencedMessageRangeNack>(&rx_buf[..size]);
 
                         for seq in nack.start..=nack.end {
                             let idx = (seq as usize) % MAX_MESSAGE_RETRANSMISSION_RING;

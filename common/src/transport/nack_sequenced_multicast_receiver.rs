@@ -2,11 +2,12 @@ use crate::memory::ring_buffer::RingBuffer;
 use crate::memory::ring_slot::TransportRingSlot;
 use crate::network::mutlicast::multicast_sender;
 use crate::network::network_constants::MAX_UDP_PACKET_SIZE;
+use crate::serialize::serialize::{as_bytes, from_bytes};
 use crate::transport::sequenced_message::{
     SequenceNumber, SequencedEngineMessage, SequencedMessageRangeNack,
 };
 use crate::transport::transport_constants::MAX_MESSAGE_RETRANSMISSION_RING;
-use crate::transport::zero_alloc_transport::{from_bytes, nack_as_bytes};
+use crate::transport::zero_alloc::RawWireMessage;
 use crate::util::time::system_nanos;
 use std::io::ErrorKind;
 use std::mem::MaybeUninit;
@@ -51,7 +52,7 @@ impl NackSequencedMulticastReceiver {
             loop {
                 match recv_socket.recv_from(&mut rx_buf) {
                     Ok((size, _src)) => {
-                        let raw_wire_msg = from_bytes(&rx_buf[..size]);
+                        let raw_wire_msg = from_bytes::<RawWireMessage>(&rx_buf[..size]);
                         for batch_idx in 0..raw_wire_msg.batch_size {
                             let mut msg = MaybeUninit::<SequencedEngineMessage>::uninit();
 
@@ -82,7 +83,7 @@ impl NackSequencedMulticastReceiver {
             loop {
                 match retrans_recv_socket.recv_from(&mut rx_buf) {
                     Ok((size, _src)) => {
-                        let raw_wire_msg = from_bytes(&rx_buf[..size]);
+                        let raw_wire_msg = from_bytes::<RawWireMessage>(&rx_buf[..size]);
                         for batch_idx in 0..raw_wire_msg.batch_size {
                             let mut msg = MaybeUninit::<SequencedEngineMessage>::uninit();
 
@@ -135,7 +136,10 @@ impl NackSequencedMulticastReceiver {
                         if s != prev + 1 {
                             let nack = SequencedMessageRangeNack { start, end: prev };
                             nack_send_socket
-                                .send_to(nack_as_bytes(&nack), nack_listen_addr)
+                                .send_to(
+                                    as_bytes::<SequencedMessageRangeNack>(&nack),
+                                    nack_listen_addr,
+                                )
                                 .unwrap();
                             start = s;
                         }
@@ -144,7 +148,10 @@ impl NackSequencedMulticastReceiver {
 
                     // final range
                     let nack = SequencedMessageRangeNack { start, end: prev };
-                    let _ = nack_send_socket.send_to(nack_as_bytes(&nack), nack_listen_addr);
+                    let _ = nack_send_socket.send_to(
+                        as_bytes::<SequencedMessageRangeNack>(&nack),
+                        nack_listen_addr,
+                    );
 
                     nack_batch.clear();
                 }

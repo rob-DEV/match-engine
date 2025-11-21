@@ -1,3 +1,3 @@
 [workspace]
-members = ["common", "engine", "gateway", "oe-client", "recorder", "market-data"]
+members = ["common", "engine", "market-gateway", "oe-client", "recorder", "market-data", "oe-api"]
 resolver = "2"

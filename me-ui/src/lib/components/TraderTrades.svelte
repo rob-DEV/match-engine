@@ -5,7 +5,9 @@
 </script>
 
 <div class="bg-gray-800 rounded-lg p-4">
-    <h3 class="text-lg font-semibold text-white mb-3">Recent Trades</h3>
+    <div class="flex items-center gap-2 mb-3">
+        <h3 class="text-lg font-semibold text-white">Your Trades</h3>
+    </div>
     <div class="grid grid-cols-3 gap-2 text-xs text-gray-400 pb-2 border-b border-gray-700">
         <div>Price</div>
         <div>Quantity</div>
