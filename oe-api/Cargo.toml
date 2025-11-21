@@ -1,0 +1,10 @@
+[package]
+name = "oe-api"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = { version = "0.8.7", features = ["ws"] }
+tokio = { version = "1.48.0", features = ["full"] }
+serde = { version = "1.0.228", features = ["derive"] }
+common = { version = "0.1.0", path = "../common" }
