@@ -129,7 +129,7 @@ pub async fn ws_event_stream(
             use tokio::time::{Duration, sleep};
 
             loop {
-                sleep(Duration::from_secs(5)).await;
+                sleep(Duration::from_secs(15)).await;
 
                 let now = system_nanos();
 
