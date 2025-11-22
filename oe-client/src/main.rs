@@ -9,7 +9,8 @@ use std::error::Error;
 use std::io::{BufRead, Read, Write};
 use std::net::TcpStream;
 use std::process::exit;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::Ordering::Relaxed;
+use std::sync::atomic::{AtomicBool, AtomicU32};
 use std::sync::mpsc::Receiver;
 use std::thread;
 
@@ -31,6 +32,7 @@ fn writer(mut write_stream: TcpStream, sequenced_message_store: Receiver<EngineM
     }
 }
 static SHOULD_LOG: AtomicBool = AtomicBool::new(true);
+static CLIENT_ID: AtomicU32 = AtomicU32::new(0);
 
 fn reader(mut read_stream: TcpStream) {
     let mut buffer: [u8; 4096] = [0; 4096];
@@ -126,6 +128,7 @@ fn parse(input: String) -> Result<Command, ()> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
+    CLIENT_ID.store(random::<u32>(), Relaxed);
     let (sender, receiver) = std::sync::mpsc::channel::<EngineMessage>();
     let oe_client_thread = thread::spawn(move || client_connection(receiver));
 
@@ -189,7 +192,7 @@ fn build_nos(is_buy: bool, px: u32, qty: u32) -> EngineMessage {
     };
 
     EngineMessage::NewOrder(OrderRequest {
-        client_id: 0,
+        client_id: CLIENT_ID.load(Relaxed),
         instrument: Instrument::str_to_fixed_char_buffer("BTC-USD"),
         order_side: side,
         px,
@@ -206,7 +209,7 @@ fn build_cancel(is_buy: bool, order_id: u32) -> EngineMessage {
     };
 
     EngineMessage::CancelOrder(CancelOrderRequest {
-        client_id: 0,
+        client_id: CLIENT_ID.load(Relaxed),
         order_side: side,
         order_id,
         instrument: Instrument::str_to_fixed_char_buffer("BTC-USD"),

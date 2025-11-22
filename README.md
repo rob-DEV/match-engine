@@ -2,10 +2,9 @@
 
 Experimental trade matching engine written in Rust.
 
-![Engine](https://github.com/rob-DEV/match-engine/blob/main/misc/scratch/dev/frontend.png)
+![orders_from_client_sim](https://github.com/rob-DEV/match-engine/blob/main/misc/scratch/dev/orders_from_client_sim.webp)
 
 ![Engine](https://github.com/rob-DEV/match-engine/blob/main/misc/scratch/dev/engine_components.png)
-
 ## Features
 - Match Engine - FIFO & Pro rata order matching
   - Limit order
