@@ -3,13 +3,12 @@ mod app_state;
 mod engine_event_stream;
 mod engine_order_entry;
 mod ws_event_stream;
-
 use crate::app_state::AppState;
 use crate::engine_event_stream::gateway_event_stream;
 use crate::engine_order_entry::gateway_order_entry;
-use crate::ws_event_stream::ws_engine_event_stream;
-use axum::Router;
+use crate::ws_event_stream::ws_event_stream;
 use axum::routing::get;
+use axum::Router;
 use common::transport::sequenced_message::EngineMessage;
 use std::sync::Arc;
 use tokio::net::TcpStream;
@@ -32,7 +31,7 @@ async fn main() {
     println!("Connected to market-gateway");
 
     let app = Router::new()
-        .route("/ws/event_stream/{client_id}", get(ws_engine_event_stream))
+        .route("/ws/event_stream/{client_id}", get(ws_event_stream))
         .with_state(state);
 
     println!("Order API listening on 0.0.0.0:8080");

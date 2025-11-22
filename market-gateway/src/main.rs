@@ -22,13 +22,22 @@ async fn main() -> Result<(), Box<dyn Error>> {
     let listener = TcpListener::bind("0.0.0.0:3001").await?;
     println!("Gateway listening on 3001");
 
-    let (tx_gw_queue, rx_gw_queue) = mpsc::channel::<EngineMessage>(1024);
-    let (tx_engine_queue, _) = broadcast::channel::<EngineMessage>(1024);
+    let (tx_gw_queue, rx_gw_queue) = mpsc::channel::<EngineMessage>(1_000_000);
+    let (tx_engine_queue, _) = broadcast::channel::<EngineMessage>(1_000_000);
 
     let state = Arc::new(AppState::new(tx_gw_queue));
 
-    msg_in_thread(3000, CoreId { id: 0 }, rx_gw_queue);
-    msg_out_thread(3500, CoreId { id: 0 }, tx_engine_queue.clone());
+    let core_ids = core_affinity::get_core_ids()
+        .unwrap()
+        .into_iter()
+        .collect::<Vec<_>>();
+
+    let pinned_match_core = core_ids[0];
+    let pinned_msg_in_core = core_ids[1];
+    let pinned_msg_out_core = core_ids[2];
+
+    msg_in_thread(3000, pinned_msg_in_core, rx_gw_queue);
+    msg_out_thread(3500, pinned_msg_out_core, tx_engine_queue.clone());
 
     loop {
         let (socket, addr) = listener.accept().await?;

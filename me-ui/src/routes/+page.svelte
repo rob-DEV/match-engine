@@ -14,9 +14,8 @@
     let showFlash = false;
 
     onMount(() => {
-        connectWS($clientId); // only runs once, client-side
+        connectWS($clientId);
     });
-
 </script>
 
 <svelte:head>

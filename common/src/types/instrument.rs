@@ -6,7 +6,7 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    pub fn instrument_str_to_fixed_buffer(symbol: &str) -> [u8; 16] {
+    pub fn str_to_fixed_char_buffer(symbol: &str) -> [u8; 16] {
         let bytes = symbol.as_bytes();
         let mut buf = [0u8; 16];
         let n = bytes.len().min(16);

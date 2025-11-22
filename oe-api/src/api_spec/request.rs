@@ -20,9 +20,14 @@ pub struct ApiOrderCancelRequest {
     pub order_id: u32,
 }
 
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+pub struct Heartbeat {}
+
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
 pub enum IncomingMessage {
     ApiOrderRequest(ApiOrderRequest),
     ApiOrderCancelRequest(ApiOrderCancelRequest),
+    Heartbeat(Heartbeat),
 }

@@ -32,12 +32,12 @@ pub enum TimeInForce {
 }
 
 impl TimeInForce {
-    pub fn str_to_type(time_in_force: &str) -> TimeInForce {
-        match time_in_force {
-            "GTC" => TimeInForce::GTC,
-            "IOC" => TimeInForce::IOC,
-            "FOK" => TimeInForce::FOK,
-            _ => panic!("Unknown time_in_force: {}", time_in_force),
+    pub fn str_to_val(time_in_force: &str) -> Result<TimeInForce, String> {
+        match time_in_force.to_lowercase().as_str() {
+            "gtc" => Ok(TimeInForce::GTC),
+            "ioc" => Ok(TimeInForce::IOC),
+            "fok" => Ok(TimeInForce::FOK),
+            _ => Err(format!("Invalid TimeInForce: {}", time_in_force)),
         }
     }
 }

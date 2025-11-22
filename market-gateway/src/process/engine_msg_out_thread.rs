@@ -12,7 +12,7 @@ pub fn msg_out_thread(
     tx_engine_queue: Sender<EngineMessage>,
 ) -> JoinHandle<()> {
     thread::spawn(move || {
-        core_affinity::set_for_current(pinned_msg_out_core);
+        // core_affinity::set_for_current(pinned_msg_out_core);
         let udp_socket = multicast_receiver(msg_out_port);
 
         let mut multicast_receiver = NackSequencedMulticastReceiver::new(udp_socket, 9001);

@@ -1,6 +1,7 @@
 <script lang="ts">
-    import {sendOrder} from "../stores/event_stream.ts";
+    import {sendJson} from "../stores/event_stream.ts";
     import type {OutgoingMessage} from "../stores/event_stream.ts";
+    import {clientId} from "$lib/stores/user";
 
     export let side = "buy";
     export let px = 0;
@@ -10,14 +11,14 @@
         const typed_side = (side as "buy" | "sell");
         let order: OutgoingMessage = {
             type: "ApiOrderRequest",
-            client_id: 0,
+            client_id: $clientId,
             instrument: "BTC-USD",
             side: typed_side,
             px: px,
             qty: qty,
             time_in_force: "GTC"
         };
-        sendOrder(order);
+        sendJson(order);
 
         console.log("Sent order:", order);
     }

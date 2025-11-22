@@ -1,18 +1,30 @@
-use fefix::prelude::*;
-use fefix::tagvalue::{Config, Encoder};
+use common::transport::sequenced_message::EngineMessage;
+use common::types::cancel_order::CancelOrderRequest;
+use common::types::instrument::Instrument;
+use common::types::order::{OrderRequest, TimeInForce};
+use common::types::side::Side;
+use common::util::time::system_nanos;
 use rand::random;
 use std::error::Error;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufRead, Read, Write};
 use std::net::TcpStream;
 use std::process::exit;
 use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::Receiver;
 use std::thread;
 
-fn writer(mut write_stream: TcpStream, sequenced_message_store: Receiver<String>) {
+fn writer(mut write_stream: TcpStream, sequenced_message_store: Receiver<EngineMessage>) {
     let mut count = 0;
     while let Ok(message) = sequenced_message_store.recv() {
-        if write_stream.write_all(message.as_bytes()).is_err() {
+        let serialized = common::serialize::serialize::as_bytes(&message);
+
+        let packet_len = serialized.len();
+        if let Err(err) = write_stream.write_all(&packet_len.to_be_bytes()) {
+            println!("Gateway write error: {:?}", err);
+        }
+
+        if let Err(err) = write_stream.write_all(&serialized) {
+            println!("Gateway write error: {:?}", err);
             break;
         }
         count += 1;
@@ -20,25 +32,33 @@ fn writer(mut write_stream: TcpStream, sequenced_message_store: Receiver<String>
 }
 static SHOULD_LOG: AtomicBool = AtomicBool::new(true);
 
-fn reader(read_stream: TcpStream) {
-    let mut buf_reader = BufReader::new(read_stream);
-    let mut line = String::new();
+fn reader(mut read_stream: TcpStream) {
+    let mut buffer: [u8; 4096] = [0; 4096];
+
     loop {
-        line.clear();
-        let bytes_read = buf_reader.read_line(&mut line).unwrap();
+        let mut len_buf = [0u8; 4];
+        if read_stream.read_exact(&mut len_buf).is_err() {
+            return; // disconnected
+        }
 
-        // if SHOULD_LOG.load(Ordering::Relaxed) {
-        // println!("{}", line);
-        // }
+        let frame_len = u32::from_be_bytes(len_buf) as usize;
 
-        if bytes_read == 0 {
-            println!("Client disconnected!");
-            exit(0);
+        if frame_len > 0 {
+            if frame_len > buffer.len() {
+                println!("Frame too large");
+                return;
+            }
+
+            read_stream.read_exact(&mut buffer[..frame_len]).unwrap();
+
+            // if SHOULD_LOG.load(Ordering::Relaxed) {
+            // println!("{:?}", buffer);
+            // }
         }
     }
 }
 
-fn client_connection(sequenced_message_store: Receiver<String>) {
+fn client_connection(sequenced_message_store: Receiver<EngineMessage>) {
     let mut tcp_stream = TcpStream::connect("127.0.0.1:3001")
         .map_err(|e| "Failed to connect to the market-gateway server")
         .unwrap();
@@ -106,7 +126,7 @@ fn parse(input: String) -> Result<Command, ()> {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let (sender, receiver) = std::sync::mpsc::channel::<String>();
+    let (sender, receiver) = std::sync::mpsc::channel::<EngineMessage>();
     let oe_client_thread = thread::spawn(move || client_connection(receiver));
 
     println!("-----------------");
@@ -121,40 +141,29 @@ fn main() -> Result<(), Box<dyn Error>> {
         std::io::stdin().read_line(&mut line).unwrap();
 
         if let Ok(command) = parse(line.trim().to_string()) {
-            let fix_message;
+            let order;
             match command {
                 Command::Buy(px, qty) => {
-                    fix_message = build_nos(true, px, qty);
-                    sender
-                        .clone()
-                        .send(fix_message.to_string() + "\n")
-                        .expect("TODO: panic types");
+                    order = build_nos(true, px, qty);
+                    sender.clone().send(order).expect("TODO: panic types");
                 }
                 Command::Sell(px, qty) => {
-                    fix_message = build_nos(false, px, qty);
-                    sender
-                        .clone()
-                        .send(fix_message.to_string() + "\n")
-                        .expect("TODO: panic types");
+                    order = build_nos(false, px, qty);
+                    sender.clone().send(order).expect("TODO: panic types");
                 }
                 Command::Cancel(is_buy, order_id) => {
-                    fix_message = build_cancel(is_buy, order_id);
-                    sender
-                        .clone()
-                        .send(fix_message.to_string() + "\n")
-                        .expect("TODO: panic types");
+                    order = build_cancel(is_buy, order_id);
+                    sender.clone().send(order).expect("TODO: panic types");
                 }
                 Command::Perf(is_buy, batch_size) => {
                     SHOULD_LOG.store(false, std::sync::atomic::Ordering::Release);
                     for _ in 0..batch_size {
-                        let order_fix;
+                        let order;
                         let px = (random::<u32>() % 100) + 1;
                         let qty = (random::<u32>() % 100) + 1;
 
-                        order_fix = build_nos(is_buy, px, qty);
-                        sender
-                            .send(order_fix.to_string() + "\n")
-                            .expect("TODO: panic types");
+                        order = build_nos(is_buy, px, qty);
+                        sender.send(order).expect("TODO: panic types");
                     }
 
                     println!("Perf done!");
@@ -173,48 +182,33 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn build_nos(is_buy: bool, px: u32, qty: u32) -> String {
-    let mut encoder = Encoder::<Config>::default();
-    encoder.config_mut().set_separator(b'|');
-    let mut buffer = Vec::new();
-    let mut msg = encoder.start_message(b"FIX.4.2", &mut buffer, b"D");
-    msg.set(fix44::MSG_SEQ_NUM, 215);
-    msg.set(fix44::SENDER_COMP_ID, "CLIENT12");
-    msg.set(fix44::TARGET_COMP_ID, "B");
-    msg.set(fix44::ACCOUNT, "TestClient");
-    msg.set(fix44::CL_ORD_ID, "13346");
-    msg.set(fix44::ORD_TYPE, fix44::OrdType::Limit);
-    msg.set(fix44::PRICE, px);
-    msg.set(fix44::ORDER_QTY, qty);
-    if is_buy {
-        msg.set(fix44::SIDE, fix44::Side::Buy);
-    } else {
-        msg.set(fix44::SIDE, fix44::Side::Sell);
-    }
-    msg.set(fix44::TIME_IN_FORCE, fix44::TimeInForce::Day);
+fn build_nos(is_buy: bool, px: u32, qty: u32) -> EngineMessage {
+    let side = match is_buy {
+        true => Side::Buy,
+        false => Side::Sell,
+    };
 
-    let a = msg.wrap();
-    String::from_utf8(Vec::from(a)).unwrap()
+    EngineMessage::NewOrder(OrderRequest {
+        client_id: 0,
+        instrument: Instrument::str_to_fixed_char_buffer("BTC-USD"),
+        order_side: side,
+        px,
+        qty,
+        time_in_force: TimeInForce::GTC,
+        timestamp: system_nanos(),
+    })
 }
 
-fn build_cancel(is_buy: bool, order_id: u32) -> String {
-    let mut encoder = Encoder::<Config>::default();
-    encoder.config_mut().set_separator(b'|');
-    let mut buffer = Vec::new();
-    let mut msg = encoder.start_message(b"FIX.4.2", &mut buffer, b"F");
-    msg.set(fix44::MSG_SEQ_NUM, 215);
-    msg.set(fix44::SENDER_COMP_ID, "CLIENT12");
-    msg.set(fix44::TARGET_COMP_ID, "B");
-    msg.set(fix44::ACCOUNT, "TestClient");
-    msg.set(fix44::ORDER_ID, order_id);
-    msg.set(fix44::ORD_TYPE, fix44::OrdType::Limit);
-    if is_buy {
-        msg.set(fix44::SIDE, fix44::Side::Buy);
-    } else {
-        msg.set(fix44::SIDE, fix44::Side::Sell);
-    }
-    msg.set(fix44::TIME_IN_FORCE, fix44::TimeInForce::Day);
+fn build_cancel(is_buy: bool, order_id: u32) -> EngineMessage {
+    let side = match is_buy {
+        true => Side::Buy,
+        false => Side::Sell,
+    };
 
-    let a = msg.wrap();
-    String::from_utf8(Vec::from(a)).unwrap()
+    EngineMessage::CancelOrder(CancelOrderRequest {
+        client_id: 0,
+        order_side: side,
+        order_id,
+        instrument: Instrument::str_to_fixed_char_buffer("BTC-USD"),
+    })
 }

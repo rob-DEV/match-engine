@@ -56,12 +56,12 @@ pub async fn gateway_event_stream(mut rx_gateway_stream: OwnedReadHalf, mut stat
                     }
                 };
 
-                if let Some(client_channel) = state.tx_client_id_channel_map.get(&other_client) {
+                if let Some(client_channel) = state.tx_engine_to_client_channel.get(&other_client) {
                     let clone = msg.clone();
                     client_channel.send(clone).await.unwrap();
                 }
 
-                if let Some(channel) = state.tx_client_id_channel_map.get(&client_id) {
+                if let Some(channel) = state.tx_engine_to_client_channel.get(&client_id) {
                     channel.send(msg).await.unwrap();
                 }
             }

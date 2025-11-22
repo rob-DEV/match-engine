@@ -14,25 +14,31 @@ use common::types::side::Side;
 use common::util::time::system_nanos;
 use futures::{SinkExt, StreamExt};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 use tokio::sync::mpsc;
 
-pub async fn ws_engine_event_stream(
+pub async fn ws_event_stream(
     State(state): State<Arc<AppState>>,
     Path(client_id): Path<u32>,
     ws: WebSocketUpgrade,
 ) -> impl IntoResponse {
-    ws.on_upgrade(move |mut socket| async move {
+    ws.on_upgrade(move |socket| async move {
         println!("WS client {} connected", client_id);
 
+        let last_heartbeat = Arc::new(AtomicU64::new(system_nanos()));
         // Channel for engine -> client messages
         let (tx, mut rx) = mpsc::channel::<EngineMessage>(128);
-        state.tx_client_id_channel_map.insert(client_id, tx.clone());
+        state
+            .tx_engine_to_client_channel
+            .insert(client_id, tx.clone());
 
         let (mut ws_tx, mut ws_rx) = socket.split();
 
         let oe_api_to_client = tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
-                let json = engine_msg_to_json(msg);
+                let json = engine_msg_to_json(client_id, msg);
+                println!("JSON from engine {}", json);
                 if ws_tx
                     .send(Message::Text(Utf8Bytes::from(json)))
                     .await
@@ -44,7 +50,8 @@ pub async fn ws_engine_event_stream(
             }
         });
 
-        let tx_oe_queue_task = state.tx_oe_api_queue.clone();
+        let state_oe_task = state.clone();
+        let last_heartbeat_task = last_heartbeat.clone();
         let client_to_engine = tokio::spawn(async move {
             while let Some(msg_result) = ws_rx.next().await {
                 match msg_result {
@@ -52,37 +59,57 @@ pub async fn ws_engine_event_stream(
                         let engine_message = match serde_json::from_str::<IncomingMessage>(&text) {
                             Ok(msg) => match msg {
                                 IncomingMessage::ApiOrderRequest(request) => {
-                                    EngineMessage::NewOrder(OrderRequest {
+                                    Some(EngineMessage::NewOrder(OrderRequest {
                                         client_id,
-                                        instrument: Instrument::instrument_str_to_fixed_buffer(
+                                        instrument: Instrument::str_to_fixed_char_buffer(
                                             &request.instrument,
                                         ),
-                                        order_side: Side::str_to_type(&request.side),
+                                        order_side: Side::str_to_val(&request.side).unwrap(),
                                         px: request.px,
                                         qty: request.qty,
-                                        time_in_force: TimeInForce::str_to_type(
+                                        time_in_force: TimeInForce::str_to_val(
                                             &request.time_in_force,
-                                        ),
+                                        )
+                                        .unwrap(),
                                         timestamp: system_nanos(),
-                                    })
+                                    }))
                                 }
                                 IncomingMessage::ApiOrderCancelRequest(request) => {
-                                    EngineMessage::CancelOrder(CancelOrderRequest {
+                                    Some(EngineMessage::CancelOrder(CancelOrderRequest {
                                         client_id,
-                                        order_side: Side::str_to_type(&request.side),
+                                        order_side: Side::str_to_val(&request.side).unwrap(),
                                         order_id: request.order_id,
-                                        instrument: Instrument::instrument_str_to_fixed_buffer(
+                                        instrument: Instrument::str_to_fixed_char_buffer(
                                             &request.instrument,
                                         ),
-                                    })
+                                    }))
+                                }
+                                IncomingMessage::Heartbeat(_) => {
+                                    last_heartbeat_task.store(system_nanos(), Ordering::Relaxed);
+                                    None
                                 }
                             },
                             Err(e) => panic!("Error: {}", e),
                         };
 
-                        if tx_oe_queue_task.send(engine_message).await.is_err() {
-                            eprintln!("Send to engine failed; closing");
+                        // Send to engine required - heartbeats for example are not
+                        if let Some(engine_message) = engine_message {
+                            if state_oe_task
+                                .tx_oe_api_queue
+                                .send(engine_message)
+                                .await
+                                .is_err()
+                            {
+                                eprintln!("Send to engine failed; closing");
+                            }
                         }
+                    }
+
+                    Ok(Message::Ping(_)) => {
+                        println!("Received PING from client {}", client_id);
+                    }
+                    Ok(Message::Pong(_)) => {
+                        println!("Received PONG from client {}", client_id);
                     }
 
                     Ok(Message::Close(_)) => break,
@@ -97,19 +124,41 @@ pub async fn ws_engine_event_stream(
             }
         });
 
-        let _ = tokio::join!(oe_api_to_client, client_to_engine);
+        let last_heartbeat_guard_task = last_heartbeat.clone();
+        let all_task_heartbeat_guard = tokio::spawn(async move {
+            use tokio::time::{Duration, sleep};
+
+            loop {
+                sleep(Duration::from_secs(5)).await;
+
+                let now = system_nanos();
+
+                if now - last_heartbeat_guard_task.load(Ordering::Acquire)
+                    > Duration::from_secs(10).as_nanos() as u64
+                {
+                    println!("Client {} heartbeat timeout!", client_id);
+
+                    oe_api_to_client.abort();
+                    client_to_engine.abort();
+                    break;
+                }
+            }
+        });
+
+        let _ = tokio::join!(all_task_heartbeat_guard);
 
         // Cleanup
-        state.tx_client_id_channel_map.remove(&client_id);
+        state.tx_engine_to_client_channel.remove(&client_id);
         println!("WS client {} disconnected", client_id);
     })
 }
-fn engine_msg_to_json(msg: EngineMessage) -> String {
+fn engine_msg_to_json(client_id: u32, msg: EngineMessage) -> String {
     match msg {
         EngineMessage::NewOrderAck(a) => serde_json::to_string(&ApiOrderAckResponse {
             client_id: a.client_id,
             instrument: "BTC-USD".into(),
-            side: "".into(),
+            order_id: a.order_id,
+            side: Side::val_to_str(a.side),
             px: a.px,
             qty: a.qty,
             ack_time: a.ack_time,
@@ -125,7 +174,7 @@ fn engine_msg_to_json(msg: EngineMessage) -> String {
         })
         .unwrap(),
         EngineMessage::TradeExecution(e) => serde_json::to_string(&ApiExecutionReportResponse {
-            client_id: e.bid_client_id,
+            client_id,
             instrument: "BTC-USD".into(),
             order_id: e.bid_order_id,
             fill_type: "".into(),

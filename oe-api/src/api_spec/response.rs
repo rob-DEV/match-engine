@@ -5,6 +5,7 @@ use serde::Serialize;
 pub struct ApiOrderAckResponse {
     pub client_id: u32,
     pub instrument: String,
+    pub order_id: u32,
     pub side: String,
     pub px: u32,
     pub qty: u32,
