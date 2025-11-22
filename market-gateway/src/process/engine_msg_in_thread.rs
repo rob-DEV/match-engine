@@ -1,4 +1,4 @@
-use common::network::mutlicast::multicast_receiver;
+use common::network::mutlicast::multicast_sender;
 use common::transport::nack_sequenced_multicast_sender::NackSequencedMulticastSender;
 use common::transport::sequenced_message::EngineMessage;
 use core_affinity::CoreId;
@@ -14,7 +14,7 @@ pub fn msg_in_thread(
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         // core_affinity::set_for_current(pinned_msg_in_core);
-        let msg_in_socket = multicast_receiver(msg_in_port);
+        let msg_in_socket = multicast_sender();
         let send_addr = SocketAddr::V4(SocketAddrV4::new(
             Ipv4Addr::new(239, 255, 0, 1),
             msg_in_port,
