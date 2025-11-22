@@ -49,10 +49,10 @@ pub async fn gateway_event_stream(mut rx_gateway_stream: OwnedReadHalf, mut stat
                     }
 
                     EngineMessage::EngineCommand(_) => {
-                        panic!("Received Engine Command during Engine Command")
+                        panic!("Received Engine Command")
                     }
                     EngineMessage::EngineError(_) => {
-                        panic!("Received Engine Error during Engine Command")
+                        panic!("Received Engine Error")
                     }
                 };
 

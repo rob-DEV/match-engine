@@ -1,22 +1,24 @@
-<script>
+<script lang="ts">
     import {sendOrder} from "../stores/event_stream.ts";
-    import {boundedRandomNumber} from "$lib/utils/utils.ts";
+    import type {OutgoingMessage} from "../stores/event_stream.ts";
 
-    export let side = 'buy';
-    export let px = '';
-    export let qty = '';
-
-    const CLIENT_TRADER_ID = boundedRandomNumber(100_000, 10_000_000);
+    export let side = "buy";
+    export let px = 0;
+    export let qty = 0;
 
     function placeOrder() {
-        let order = {
-            type: 'NewOrder',
-            data: {side, px, qty}
+        const typed_side = (side as "buy" | "sell");
+        let order: OutgoingMessage = {
+            type: "ApiOrderRequest",
+            client_id: 0,
+            instrument: "BTC-USD",
+            side: typed_side,
+            px: px,
+            qty: qty,
+            time_in_force: "GTC"
         };
         sendOrder(order);
 
-        px = '';
-        qty = '';
         console.log("Sent order:", order);
     }
 </script>

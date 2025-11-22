@@ -1,6 +1,5 @@
 <script lang="ts">
     import {market} from '$lib/stores/market.ts';
-    import {wsConnectClient} from '$lib/stores/event_stream.ts';
 
     import LastPrice from '$lib/components/LastPrice.svelte';
     import OrderBook from '$lib/components/OrderBook.svelte';
@@ -8,11 +7,15 @@
     import TradeInput from "$lib/components/TradeInput.svelte";
     import TraderOrders from "$lib/components/TraderOrders.svelte";
     import TraderTrades from "$lib/components/TraderTrades.svelte";
+    import {clientId} from "$lib/stores/user.ts";
+    import {connectWS} from "$lib/stores/event_stream.ts";
+    import {onMount} from "svelte";
 
     let showFlash = false;
 
-    const clientId = 123; // dynamically from login/session
-    wsConnectClient(clientId);
+    onMount(() => {
+        connectWS($clientId); // only runs once, client-side
+    });
 
 </script>
 

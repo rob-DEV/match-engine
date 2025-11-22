@@ -1,42 +1,57 @@
-import {writable} from 'svelte/store';
+import { writable } from 'svelte/store';
 
-export interface EngineMessage {
-    type: string;
-    data: any;
-}
+export type EngineMessage =
+    | { type: "ApiOrderAckResponse"; client_id: number; instrument: string; side: string; px: number; qty: number; ack_time: number }
+    | { type: "ApiCancelOrderAckResponse"; client_id: number; instrument: string; order_id: number; cancel_order_status: string; reason: string; ack_time: number }
+    | { type: "ApiExecutionReportResponse"; client_id: number; instrument: string; order_id: number; fill_type: string; exec_px: number; exec_qty: number; exec_type: string; exec_ns: number };
 
-// Central store for incoming engine messages
-export const wsMessages = writable<EngineMessage[]>([]);
+export type OutgoingMessage =
+    | { type: "ApiOrderRequest"; client_id: number; instrument: string; side: "buy" | "sell"; px: number; qty: number; time_in_force: string }
+    | { type: "ApiOrderCancelRequest"; client_id: number; instrument: string; order_id: number };
 
-let ws: WebSocket | null = null;
+export const wsMessages = writable([]);
+let ws: WebSocket;
 
-export function wsConnectClient(clientId: number) {
-    if (ws) return;
-
+export function connectWS(clientId: number) {
     ws = new WebSocket(`ws://localhost:8080/ws/event_stream/${clientId}`);
 
     ws.onopen = () => {
-        console.log('WS connected');
+        console.log("Connected to WebSocket");
     };
 
     ws.onmessage = (event) => {
-        const msg: EngineMessage = JSON.parse(event.data);
-        wsMessages.update((arr) => [...arr, msg]);
+        try {
+            const data = JSON.parse(event.data) as EngineMessage;
+
+            // Narrow type using the `type` field
+            switch (data.type) {
+                case "ApiOrderAckResponse":
+                    console.log("Order acknowledged:", data);
+                    break;
+                case "ApiCancelOrderAckResponse":
+                    console.log("Cancel acknowledged:", data);
+                    break;
+                case "ApiExecutionReportResponse":
+                    console.log("Trade executed:", data);
+                    break;
+            }
+
+            wsMessages.update(list => [...list, data]);
+        } catch (e) {
+            console.error("Bad JSON:", e);
+        }
     };
 
     ws.onclose = () => {
-        console.log('WS disconnected, reconnecting in 1s');
-        ws = null;
-        setTimeout(() => wsConnectClient(clientId), 1000);
-    };
-
-    ws.onerror = (err) => {
-        console.error('WS error', err);
-        ws?.close();
+        console.log("WS closed — reconnecting...");
+        setTimeout(() => connectWS(clientId), 1000);
     };
 }
 
-export function sendOrder(order: any) {
-    if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify(order));
+export function sendOrder(obj: OutgoingMessage) {
+    if (ws?.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(obj));
+    } else {
+        console.warn("WS not open yet, cannot send");
+    }
 }
