@@ -10,10 +10,10 @@ pub fn match_thread(
     engine_msg_out_tx: Sender<EngineMessage>,
     order_entry_rx: Receiver<Order>,
     pinned_match_core: CoreId,
+    mut match_engine: MatchEngine
 ) -> JoinHandle<()> {
     thread::spawn(move || {
         core_affinity::set_for_current(pinned_match_core);
-        let mut match_engine = MatchEngine::new();
         match_engine.run(order_entry_rx, engine_msg_out_tx);
     })
 }

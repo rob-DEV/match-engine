@@ -5,7 +5,6 @@ use std::fmt::Debug;
 #[derive(Clone)]
 pub struct ExecutionReport {
     pub trade_id: u32,
-    pub trade_seq: u32,
 
     pub bid_client_id: u32,
     pub bid_order_id: u32,
@@ -29,14 +28,14 @@ pub struct ExecutionReport {
 #[derive(PartialEq, Debug, Copy, Clone)]
 #[repr(C)]
 pub enum ExecType {
-    MatchEvent,
-    SelfMatchPrevented,
+    MatchEvent = 0,
+    SelfMatchPrevented = 1,
 }
 
 #[derive(PartialEq, Debug, Copy, Clone)]
 #[repr(C)]
 pub enum FillType {
-    NoFill,
-    PartialFill,
-    FullFill,
+    NoFill = 0,
+    PartialFill = 1,
+    FullFill = 2,
 }

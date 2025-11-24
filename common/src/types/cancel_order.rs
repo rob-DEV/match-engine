@@ -23,13 +23,13 @@ pub struct CancelledOrderAck {
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub enum CancelOrderStatus {
-    NotFound,
-    Cancelled,
+    Cancelled = 0,
+    NotFound = 1,
 }
 
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
 pub enum Reason {
-    ClientRequested,
-    SelfMatchPrevention,
+    ClientRequested = 0,
+    SelfMatchPrevention = 1,
 }

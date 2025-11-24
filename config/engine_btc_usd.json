@@ -4,7 +4,14 @@
     "msg_out_port": 3500,
     "instrument": "BTC-USD",
     "instrument_id": 1000,
-    "match_strategy": "FIFO"
+    "match_strategy": "FIFO",
+    "persistence": {
+      "db": "engine",
+      "user": "root",
+      "password": "password",
+      "order_table": "orders",
+      "execution_table": "trades"
+    }
   },
   "gateway": {
     "port": 3001,

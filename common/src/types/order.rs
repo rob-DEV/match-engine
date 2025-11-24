@@ -16,19 +16,22 @@ pub struct OrderRequest {
 #[derive(Debug, Clone, Copy)]
 pub struct NewOrderAck {
     pub client_id: u32,
-    pub side: Side,
     pub order_id: u32,
+    pub instrument: [u8; 16],
+    pub side: Side,
     pub px: u32,
     pub qty: u32,
+    pub qty_rem: u32,
+    pub time_in_force: TimeInForce,
     pub ack_time: u64,
 }
 
 #[repr(C)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum TimeInForce {
-    GTC,
-    IOC,
-    FOK,
+    GTC = 0,
+    IOC = 1,
+    FOK = 2,
 }
 
 impl TimeInForce {

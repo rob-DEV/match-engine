@@ -7,7 +7,8 @@ use common::transport::sequenced_message::EngineMessage;
 use common::types::cancel_order::Reason::ClientRequested;
 use common::types::cancel_order::{CancelOrderStatus, CancelledOrderAck};
 use common::types::execution_report::ExecutionReport;
-use common::types::order::NewOrderAck;
+use common::types::instrument::Instrument;
+use common::types::order::{NewOrderAck, TimeInForce};
 use common::util::time::system_nanos;
 use std::sync::mpsc::Receiver;
 use std::sync::mpsc::{Sender, TryRecvError};
@@ -16,6 +17,10 @@ pub struct MatchEngine {
     book: LimitOrderBook,
     match_strategy: FifoMatchStrategy,
     cycle_executions_buffer: Vec<ExecutionReport>,
+    
+    initial_order_id: u32,
+    initial_execution_id: u32,
+    
 }
 
 impl MatchEngine {
@@ -27,6 +32,8 @@ impl MatchEngine {
             book,
             match_strategy: FifoMatchStrategy::new(),
             cycle_executions_buffer: Vec::with_capacity(100_000),
+            initial_order_id: 0,
+            initial_execution_id: 0,
         }
     }
 
@@ -66,14 +73,18 @@ impl MatchEngine {
                         // add & ack full / remainder order
                         if limit_order.qty > 0 {
                             self.book.add_order(limit_order);
-                            let out = EngineMessage::NewOrderAck(NewOrderAck {
+                            let ack = NewOrderAck {
                                 client_id: limit_order.client_id,
-                                side: limit_order.side,
                                 order_id: limit_order.id,
+                                instrument: Instrument::str_to_fixed_char_buffer("BTC-USD"),
+                                side: limit_order.side,
                                 px: limit_order.px,
                                 qty: limit_order.qty,
+                                qty_rem: limit_order.qty,
+                                time_in_force: TimeInForce::GTC,
                                 ack_time: system_nanos(),
-                            });
+                            };
+                            let out = EngineMessage::NewOrderAck(ack);
 
                             engine_msg_out_tx.send(out).unwrap();
                             engine_msg_out_seq_num += 1;

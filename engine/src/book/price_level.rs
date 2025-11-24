@@ -10,7 +10,7 @@ pub struct PriceLevel {
 impl PriceLevel {
     pub fn new() -> PriceLevel {
         PriceLevel {
-            order_ids: VecDeque::with_capacity(1_000_000),
+            order_ids: VecDeque::with_capacity(100_000),
             total_qty: 0,
             num_orders: 0,
         }

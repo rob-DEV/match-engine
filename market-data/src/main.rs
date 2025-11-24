@@ -4,7 +4,7 @@ mod process;
 
 use crate::market_data_book::MarketDataBook;
 use crate::market_event::MarketEvent;
-use crate::process::engine_out_msg_receiver::initialize_engine_msg_out_receiver;
+use crate::process::engine_out_msg_thread::initialize_engine_msg_out_receiver;
 use axum::extract::ws::{Message, Utf8Bytes, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
 use axum::response::IntoResponse;

@@ -50,7 +50,6 @@ pub fn build_fill_execution(
 
     ExecutionReport {
         trade_id: 0,
-        trade_seq: 0,
         bid_client_id: bid.client_id,
         bid_order_id: bid.id,
         bid_order_px: bid.px,
@@ -71,7 +70,6 @@ pub fn build_self_match_prevention_execution(resting_order: &mut LimitOrder) -> 
     match resting_order.side {
         Side::Buy => ExecutionReport {
             trade_id: 0,
-            trade_seq: 0,
             bid_client_id: resting_order.client_id,
             bid_order_id: resting_order.id,
             bid_order_px: resting_order.px,
@@ -88,7 +86,6 @@ pub fn build_self_match_prevention_execution(resting_order: &mut LimitOrder) -> 
         },
         Side::Sell => ExecutionReport {
             trade_id: 0,
-            trade_seq: 0,
             bid_client_id: 0,
             bid_order_id: 0,
             bid_order_px: 0,

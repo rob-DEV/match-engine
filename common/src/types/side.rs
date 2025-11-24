@@ -3,8 +3,8 @@ use crate::types::side::Side::{Buy, Sell};
 #[derive(PartialEq, Debug, Clone, Copy, Eq)]
 #[repr(C)]
 pub enum Side {
-    Buy,
-    Sell,
+    Buy = 0,
+    Sell = 1,
 }
 
 impl Side {

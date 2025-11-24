@@ -1,5 +1,6 @@
 use crate::domain::order::Order;
 use crate::engine::engine_config::EngineConfig;
+use crate::engine::match_engine::MatchEngine;
 use crate::process::match_thread::match_thread;
 use crate::process::msg_in_thread::msg_in_thread;
 use crate::process::msg_out_thread::msg_out_thread;
@@ -38,7 +39,13 @@ impl MatchServer {
         let pinned_msg_out_core = core_ids[2];
 
         // OE and Match Thread
-        let match_thread = match_thread(engine_msg_out_tx, order_entry_rx, pinned_match_core);
+        let match_engine = MatchEngine::new();
+        let match_thread = match_thread(
+            engine_msg_out_tx,
+            order_entry_rx,
+            pinned_match_core,
+            match_engine,
+        );
 
         wait_50_milli();
 

@@ -17,7 +17,7 @@ impl BookSide {
     pub fn new(side: Side) -> Self {
         Self {
             price_level_map: BTreeMap::new(),
-            order_map: HashMap::with_capacity(1_000_000),
+            order_map: HashMap::with_capacity(100_000),
             side,
             total_qty: 0,
             num_orders: 0,
