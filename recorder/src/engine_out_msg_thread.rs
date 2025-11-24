@@ -12,7 +12,7 @@ pub fn msg_out_thread(
     let mut multicast_receiver = NackSequencedMulticastReceiver::new(udp_socket, 9001);
 
     println!(
-        "Initialized MSG_OUT -> MDD multicast on port {}",
+        "Initialized MSG_OUT -> RECORDER multicast on port {}",
         engine_msg_out_port
     );
 
