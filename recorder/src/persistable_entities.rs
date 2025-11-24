@@ -66,7 +66,7 @@ impl TradeRecord {
         sqlx::query!(
             r#"
         INSERT INTO trades (
-            trade_id, trade_seq,
+            trade_id,
             bid_client_id, bid_order_id, bid_order_px, bid_fill_type,
             ask_client_id, ask_order_id, ask_order_px, ask_fill_type,
             instrument,
