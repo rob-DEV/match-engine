@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  SQLX_OFFLINE: 1
+  SQLX_OFFLINE: 0
 jobs:
   build:
 
