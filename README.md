@@ -5,6 +5,70 @@ Experimental trade matching engine written in Rust.
 ![orders_from_client_sim](https://github.com/rob-DEV/match-engine/blob/main/misc/scratch/dev/orders_from_client_sim.webp)
 
 ![Engine](https://github.com/rob-DEV/match-engine/blob/main/misc/scratch/dev/engine_components.png)
+## Architecture
+
+```mermaid
+flowchart LR
+    subgraph Clients
+        UI["me-ui<br/>Svelte web UI"]
+        OEC["oe-client<br/>CLI / perf client"]
+    end
+
+    subgraph Edge["Edge services"]
+        OEAPI["oe-api<br/>Axum WS :8080<br/>/ws/event_stream/{client_id}"]
+        GW["market-gateway<br/>Tokio TCP :3001"]
+    end
+
+    subgraph Core["Matching core"]
+        ENG["engine<br/>BTC-USD order book<br/>FIFO / Pro-rata"]
+    end
+
+    subgraph Downstream["Downstream consumers"]
+        MDD["market-data<br/>Axum WS :7000<br/>/ws/marketdata"]
+        REC["recorder"]
+        DB[("PostgreSQL<br/>orders / trades")]
+    end
+
+    UI -- "orders, cancels, heartbeats (JSON over WS)" --> OEAPI
+    OEAPI -- "acks & executions" --> UI
+    OEAPI <-- "TCP" --> GW
+    OEC <-- "TCP" --> GW
+
+    GW == "MSG_IN multicast<br/>239.255.0.1:3000<br/>(NACK :9000)" ==> ENG
+    ENG == "MSG_OUT multicast<br/>239.255.0.1:3500<br/>(NACK :9001)" ==> GW
+    ENG == "MSG_OUT" ==> MDD
+    ENG == "MSG_OUT" ==> REC
+
+    MDD -- "depth book, last px, trades" --> UI
+    REC -- "sqlx" --> DB
+```
+
+All engine I/O is sequenced UDP multicast with NACK-based retransmission (`common::transport`). Every downstream service subscribes to the same `MSG_OUT` stream, so the engine never needs to know who is listening.
+
+### Engine internals
+
+```mermaid
+flowchart LR
+    IN(["MSG_IN multicast"]) --> T1["msg_in_thread<br/>(pinned core 1)<br/>NackSequencedMulticastReceiver"]
+    T1 -- "mpsc&lt;Order&gt;" --> T2["match_thread<br/>(pinned core 0)<br/>MatchEngine + OrderBook"]
+    T2 -- "mpsc&lt;EngineMessage&gt;" --> T3["msg_out_thread<br/>(pinned core 2)<br/>NackSequencedMulticastSender"]
+    T3 --> OUT(["MSG_OUT multicast"])
+
+    T2 -.-> BOOK["OrderBook<br/>BookSide → PriceLevel"]
+    T2 -.-> STRAT["MatchStrategy<br/>FIFO · Pro-rata"]
+```
+
+| Crate | Role |
+|---|---|
+| `engine` | Core matching engine: three core-pinned threads around a single-threaded order book |
+| `market-gateway` | Bridges TCP order entry clients onto the engine's multicast bus and fans engine output back out |
+| `oe-api` | WebSocket order entry API for the UI; routes acks and executions to each client |
+| `market-data` | Builds the market data book from `MSG_OUT` and streams it to the UI over WebSocket |
+| `recorder` | Saves orders and trades from `MSG_OUT` to PostgreSQL |
+| `oe-client` | Interactive CLI and load-test client |
+| `common` | Shared types, zero-copy serialization, ring buffers, sequenced multicast transport |
+| `me-ui` | SvelteKit frontend |
+
 ## Features
 - Match Engine - FIFO & Pro rata order matching
   - Limit order
